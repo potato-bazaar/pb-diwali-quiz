@@ -1,26 +1,92 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fff6ea;
+  --foreground: #3a2e26;
+  --stage: #fff6ea;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-lato), system-ui, sans-serif;
+  --font-display: var(--font-nunito), var(--font-lato), system-ui, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  height: 100%;
+  width: 100%;
+  overscroll-behavior: none;
 }
 
 body {
-  background: var(--background);
+  margin: 0;
+  background: var(--stage);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.mobile-stage,
+.mobile-device {
+  width: 100%;
+  height: 100%;
+  min-height: 100dvh;
+}
+
+.mobile-stage {
+  display: flex;
+  background: var(--stage);
+}
+
+.mobile-device {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--background);
+  padding-top: env(safe-area-inset-top);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+}
+
+@keyframes thanks-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.thanks-in {
+  animation: thanks-in 0.35s ease-out both;
+}
+
+/* Desktop browsers: show the screen inside a centred phone frame. */
+@media (min-width: 640px) {
+  body {
+    background: #1f1a17;
+  }
+
+  .mobile-stage {
+    --stage: #1f1a17;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .mobile-device {
+    flex: none;
+    width: 420px;
+    height: min(100dvh - 48px, 912px);
+    min-height: 0;
+    border-radius: 36px;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+  }
 }
