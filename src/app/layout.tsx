@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Lato, Nunito } from "next/font/google";
 import { MobileScreen } from "@/components/mobile-screen";
+import { SessionCapture } from "@/components/session-capture";
 import "./globals.css";
 
 const lato = Lato({
@@ -40,6 +41,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${lato.variable} ${nunito.variable} h-full antialiased`}
     >
       <body className="min-h-full font-sans">
+        <SessionCapture />
         <MobileScreen>{children}</MobileScreen>
       </body>
     </html>

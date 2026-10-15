@@ -35,7 +35,7 @@ const FEATURES = [
       <>
         Starts from
         <br />
-        <span className="font-bold text-[#D9471D]">1st Nov 2024</span>
+        <span className="font-bold text-[#D9471D]">1st Nov 2026</span>
       </>
     ),
   },
@@ -61,7 +61,7 @@ export function HomeScreen() {
       />
 
       {/* Header */}
-      <header className="relative z-10 shrink-0 px-6 pt-[clamp(36px,6.4dvh,56px)] text-center">
+      <header className="relative z-10 shrink-0 px-6 pt-[max(clamp(36px,6.4dvh,56px),calc(env(safe-area-inset-top)+12px))] text-center">
         <DiyaIcon className="mx-auto h-[40px] w-[54px]" />
         <p className="mt-[8px] text-[13px] leading-none font-bold tracking-[0.32em] text-[#5E5E5E]">
           POTATO BAZAAR
@@ -186,7 +186,7 @@ export function HomeScreen() {
               <InfoIcon className="h-[12px] w-[12px] shrink-0" />
               <span>
                 Quiz will start from{" "}
-                <span className="font-bold text-[#DE4D1C]">1st November 2024.</span>
+                <span className="font-bold text-[#DE4D1C]">1st November 2026.</span>
               </span>
             </p>
           )}
@@ -221,7 +221,7 @@ function ThanksBanner() {
         <p className="mt-[4px] text-[12px] leading-[16px] font-medium text-[#4A5878]">
           We&apos;ll notify you when the quiz starts
           <br />
-          on <span className="font-bold text-[#DE3E1C]">1st November 2024.</span>
+          on <span className="font-bold text-[#DE3E1C]">1st November 2026.</span>
         </p>
       </div>
     </div>
