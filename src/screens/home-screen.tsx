@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { QuizApiError, fetchInterestStatus, registerInterest } from "@/lib/diwali-quiz-api";
 import { postToNative } from "@/lib/native-bridge";
 
 const AVATARS = ["/quiz/avatar-1.jpg", "/quiz/avatar-3.jpg", "/quiz/avatar-2.jpg"];
@@ -43,6 +44,46 @@ const FEATURES = [
 
 export function HomeScreen() {
   const [interested, setInterested] = useState(false);
+  const [interestCount, setInterestCount] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchInterestStatus()
+      .then((player) => {
+        if (cancelled) return;
+        setInterested(player.isInterested);
+        if (Number.isFinite(player.interestCount)) setInterestCount(player.interestCount);
+      })
+      .catch(() => {
+        // No login yet: the button still records interest once the app token is available.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function showInterest() {
+    if (saving || interested) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const result = await registerInterest("home");
+      setInterested(true);
+      if (Number.isFinite(result.interestCount)) setInterestCount(result.interestCount);
+      postToNative({ type: "QUIZ_INTERESTED", payload: { created: result.created } });
+    } catch (caught) {
+      setError(caught instanceof QuizApiError ? caught.message : "Could not save your interest.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const interestLabel =
+    interestCount === null
+      ? "1,000+ people"
+      : `${interestCount.toLocaleString("en-IN")} ${interestCount === 1 ? "person" : "people"}`;
 
   return (
     <div className="relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-[linear-gradient(to_bottom,#FFF6EA_0%,#FEE6C7_40%,#FBECDE_66%,#FDF3E9_100%)] text-[#3A2E26]">
@@ -152,10 +193,10 @@ export function HomeScreen() {
           </div>
           <p className="min-w-0 leading-none">
             <span className="block text-[15px] leading-[17px] font-black text-[#1E2A4A]">
-              1,000+ people
+              {interestLabel}
             </span>
             <span className="mt-[3px] block text-[11px] leading-[14px] whitespace-nowrap text-[#595959]">
-              have shown interest in this quiz this week!
+              {interestCount === 1 ? "has shown interest in this quiz!" : "have shown interest in this quiz!"}
             </span>
           </p>
           <SparkleMark className="absolute top-[7px] right-[14px] h-[17px] w-[17px]" />
@@ -167,18 +208,22 @@ export function HomeScreen() {
           ) : (
             <button
               type="button"
-              onClick={() => {
-                setInterested(true);
-                postToNative({ type: "QUIZ_INTERESTED" });
-              }}
-              className="relative mt-[13px] flex h-[46px] w-full items-center justify-center gap-[12px] rounded-full bg-gradient-to-r from-[#F6A346] via-[#EF7A2C] to-[#E3471A] text-[17px] font-bold text-white shadow-[0_10px_22px_rgba(232,80,25,0.35)] active:scale-[0.98]"
+              onClick={showInterest}
+              disabled={saving}
+              className="relative mt-[13px] flex h-[46px] w-full items-center justify-center gap-[12px] rounded-full bg-gradient-to-r from-[#F6A346] via-[#EF7A2C] to-[#E3471A] text-[17px] font-bold text-white shadow-[0_10px_22px_rgba(232,80,25,0.35)] active:scale-[0.98] disabled:opacity-70"
             >
               <DiyaIcon tone="light" className="absolute top-1/2 left-[16px] h-[20px] w-[23px] -translate-y-1/2 opacity-80" />
               <BellIcon className="h-[19px] w-[19px]" />
-              <span>I&apos;m Interested</span>
+              <span>{saving ? "Saving…" : "I'm Interested"}</span>
               <ArrowIcon className="h-[19px] w-[19px]" />
               <DiyaIcon tone="light" className="absolute top-1/2 right-[16px] h-[20px] w-[23px] -translate-y-1/2 opacity-80" />
             </button>
+          )}
+
+          {error && (
+            <p role="alert" className="mt-[10px] text-center text-[12px] leading-[16px] font-semibold text-[#C2412A]">
+              {error}
+            </p>
           )}
 
           {!interested && (
