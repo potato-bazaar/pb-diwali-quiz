@@ -6,6 +6,27 @@ import { postToNative } from "@/lib/native-bridge";
 
 const AVATARS = ["/quiz/avatar-1.jpg", "/quiz/avatar-3.jpg", "/quiz/avatar-2.jpg"];
 
+const HOME_PRIZES: {
+  key: string;
+  label: string;
+  amount: string;
+  note?: string;
+  src: string;
+  pill: string;
+}[] = [
+  { key: "first", label: "1st Prize", amount: "₹5,000", src: "/quiz/trophy-gold-simple.png", pill: "bg-[#FBE2A2] text-[#8A2A10]" },
+  { key: "second", label: "2nd Prize", amount: "₹3,000", src: "/quiz/trophy-silver-simple.png", pill: "bg-[#E3E6EE] text-[#1F2A48]" },
+  { key: "third", label: "3rd Prize", amount: "₹2,000", src: "/quiz/trophy-bronze-simple.png", pill: "bg-[#F8D3B8] text-[#8A2A10]" },
+  {
+    key: "consolation",
+    label: "5 Consolation Prizes",
+    amount: "₹500",
+    note: "Each",
+    src: "/quiz/prize-gift-simple.png",
+    pill: "bg-[#FBDDD6] text-[#8A2A10]",
+  },
+];
+
 const FEATURES = [
   {
     key: "questions",
@@ -95,11 +116,30 @@ export function HomeScreen() {
         className="pointer-events-none absolute top-0 left-0 w-full select-none [-webkit-mask-image:linear-gradient(to_bottom,black_62%,transparent_100%)] [mask-image:linear-gradient(to_bottom,black_62%,transparent_100%)]"
       />
       <img
-        src="/quiz/bg-bottom.jpg"
+        src="/quiz/bg-bottom-plain.jpg"
         alt=""
         draggable={false}
         className="pointer-events-none absolute bottom-0 left-0 w-full select-none [-webkit-mask-image:linear-gradient(to_top,black_45%,transparent_100%)] [mask-image:linear-gradient(to_top,black_45%,transparent_100%)]"
       />
+      <style>{`@keyframes mandala-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+      <div className="pointer-events-none absolute bottom-0 left-0 z-[1] w-[42%] -translate-x-1/2 translate-y-1/2">
+        <img
+          src="/quiz/mandala.png"
+          alt=""
+          draggable={false}
+          className="aspect-square w-full opacity-80 select-none"
+          style={{ animation: "mandala-spin 18s linear infinite" }}
+        />
+      </div>
+      <div className="pointer-events-none absolute right-0 bottom-0 z-[1] w-[42%] translate-x-1/2 translate-y-1/2">
+        <img
+          src="/quiz/mandala.png"
+          alt=""
+          draggable={false}
+          className="aspect-square w-full opacity-80 select-none"
+          style={{ animation: "mandala-spin 18s linear infinite reverse" }}
+        />
+      </div>
 
       {/* Header */}
       <header className="relative z-10 shrink-0 px-6 pt-[clamp(36px,6.4dvh,56px)] text-center">
@@ -119,27 +159,33 @@ export function HomeScreen() {
         <LotusDivider className="mx-auto mt-[10px] h-[16px] w-[140px]" />
       </header>
 
-      {/* Prize card */}
-      <section className="relative z-10 mx-auto mt-[42px] w-[min(86%,300px)] shrink-0">
-        <img
-          src="/quiz/gift-top.png"
-          alt=""
-          className="absolute top-[-34px] left-1/2 z-10 h-[58px] w-[58px] -translate-x-1/2 object-contain drop-shadow-[0_4px_6px_rgba(150,60,20,0.25)]"
-        />
-        <div className="rounded-[22px] bg-gradient-to-b from-[#F8E2A8] via-[#E2B45A] to-[#C9963A] p-[2px] shadow-[0_10px_28px_rgba(175,95,35,0.16)]">
-          <div className="rounded-[18.5px] bg-gradient-to-b from-[#FBEBD2] to-[#F7E0BF] px-4 pt-[22px] pb-[12px] text-center">
-            <p className="text-[20px] leading-[22px] font-bold text-[#1A2344]">
-              Win up to
-            </p>
-            <p className="mt-[2px] bg-gradient-to-b from-[#D2561F] via-[#C24419] to-[#9E2714] bg-clip-text text-[52px] leading-[54px] font-black tracking-[-0.02em] text-transparent">
-              ₹12,500
-            </p>
-          </div>
+      {/* Prize breakdown, in place of the old "Win up to ₹12,500" card */}
+      <section className="relative z-10 mx-[30px] mt-[16px] shrink-0 rounded-[20px] border border-[#F4DCBC] bg-[linear-gradient(180deg,rgba(255,242,226,0.96)_0%,rgba(253,232,208,0.96)_100%)] px-[6px] pt-[9px] pb-[9px] shadow-[0_10px_22px_rgba(175,95,35,0.14)]">
+        <div className="flex items-center justify-center gap-[6px] pb-[6px]">
+          <OrnamentLine className="h-[8px] w-[36px]" />
+          <h2 className="text-[14px] leading-[18px] font-extrabold tracking-[-0.01em] text-[#1B2748]">
+            Exciting Prizes to Win
+          </h2>
+          <OrnamentLine className="h-[8px] w-[36px] -scale-x-100" />
         </div>
-        <Star className="absolute top-[54px] left-[18px] h-[13px] w-[13px]" />
-        <Star className="absolute top-[36px] right-[16px] h-[15px] w-[15px]" />
-        <Star className="absolute top-[76px] right-[10px] h-[7px] w-[7px]" />
-        <Star className="absolute top-[82px] left-[38px] h-[7px] w-[7px]" />
+        <div className="grid grid-cols-4 divide-x divide-[rgba(205,160,110,0.32)]">
+          {HOME_PRIZES.map((prize) => (
+            <div key={prize.key} className="flex flex-col items-center px-[3px] text-center">
+              <img src={prize.src} alt="" draggable={false} className="h-[42px] w-[42px] object-contain" />
+              <p className="mt-[2px] flex min-h-[20px] items-center text-[8.5px] leading-[10px] font-bold text-[#3A2A1E]">
+                {prize.label}
+              </p>
+              <p className={`mt-[2px] w-full max-w-[64px] rounded-[7px] py-[3px] text-[12px] leading-[14px] font-black tracking-[-0.02em] ${prize.pill}`}>
+                {prize.amount}
+              </p>
+              {prize.note ? (
+                <p className="mt-[1px] text-[8px] leading-[10px] font-semibold text-[#6B5A4E]">{prize.note}</p>
+              ) : (
+                <span className="h-[11px]" />
+              )}
+            </div>
+          ))}
+        </div>
       </section>
 
       {/* Potato scene: natural size right under the prize card; shrinks on short screens.
@@ -179,7 +225,17 @@ export function HomeScreen() {
           ))}
         </div>
 
-        <div className="relative mt-[15px] flex items-center gap-[9px] rounded-[24px] bg-gradient-to-r from-[#FCF1E4] to-[#FDF5EC] py-[9px] pr-[12px] pl-[12px] shadow-[0_2px_4px_rgba(150,85,30,0.06),0_8px_20px_rgba(150,85,30,0.12)]">
+        <div className="relative z-10 mt-[12px] flex shrink-0 items-center gap-[8px] rounded-[14px] border border-[#F4DCBC] bg-[linear-gradient(180deg,rgba(255,242,226,0.96)_0%,rgba(253,232,208,0.96)_100%)] px-[10px] py-[8px] shadow-[0_6px_14px_rgba(175,95,35,0.10)]">
+          <RedTrophy className="h-[20px] w-[20px] shrink-0" />
+          <p className="min-w-0 flex-1 text-center text-[11px] leading-[14px] font-medium text-[#2E2420]">
+            Vijetaon ki ghoshna <span className="font-extrabold">1–10 November</span> ke
+            <br />
+            kul score ke aadhar par hogi.
+          </p>
+          <ConfettiBurst className="h-[16px] w-[16px] shrink-0" />
+        </div>
+
+        <div className="relative mt-[10px] flex items-center gap-[9px] rounded-[24px] bg-gradient-to-r from-[#FCF1E4] to-[#FDF5EC] py-[9px] pr-[12px] pl-[12px] shadow-[0_2px_4px_rgba(150,85,30,0.06),0_8px_20px_rgba(150,85,30,0.12)]">
           <div className="flex shrink-0 -space-x-[7px]">
             {AVATARS.map((src, i) => (
               <img
@@ -322,6 +378,38 @@ function LotusDivider({ className }: IconProps) {
       <path d="M62 14c-3.2-2.4-4.6-5.4-4.6-8.6C58.6 3.8 60.2 2 62 1c1.8 1 3.4 2.8 4.6 4.4 0 3.2-1.4 6.2-4.6 8.6Z" stroke="#E3A94F" strokeWidth="1.2" strokeLinejoin="round" />
       <path d="M62 14c-4.6-.6-8.2-3.2-9.6-7 2.6-.6 5.2 0 7.4 1.6M62 14c4.6-.6 8.2-3.2 9.6-7-2.6-.6-5.2 0-7.4 1.6" stroke="#E3A94F" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M62 14c-5.8 0-9.6-1.2-12.2-3.6 1.4-.2 3-.2 4.6 0M62 14c5.8 0 9.6-1.2 12.2-3.6-1.4-.2-3-.2-4.6 0" stroke="#E3A94F" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function OrnamentLine({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 46 8" className={className} fill="none" aria-hidden="true">
+      <path d="M0 4h36" stroke="#D9A24A" strokeWidth="1" strokeLinecap="round" />
+      <path d="M40 1.2 42.8 4 40 6.8 37.2 4Z" fill="#E2AE52" />
+      <circle cx="45" cy="4" r="1" fill="#E2AE52" />
+    </svg>
+  );
+}
+
+function RedTrophy({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <path d="M6.5 4.5H3.6c0 3.6 1.6 5.6 4.2 6M17.5 4.5h2.9c0 3.6-1.6 5.6-4.2 6" fill="none" stroke="#B8261A" strokeWidth="1.6" />
+      <path d="M6.2 3h11.6v4.6a5.8 5.8 0 0 1-11.6 0Z" fill="#D2352A" />
+      <path d="M8.2 4.4v3a3.4 3.4 0 0 0 1.6 2.9" fill="none" stroke="#F07A5E" strokeWidth="1.1" strokeLinecap="round" />
+      <path d="M10.6 13.2h2.8l.5 4h-3.8Z" fill="#B8261A" />
+      <rect x="7.6" y="17.2" width="8.8" height="3.6" rx="0.8" fill="#9E1F15" />
+    </svg>
+  );
+}
+
+function ConfettiBurst({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 20 20" className={className} fill="none" aria-hidden="true">
+      <path d="M10 2.2v3.4M4 5l2.2 2.4M16 5l-2.2 2.4M2.4 11h3M14.6 11h3" stroke="#EE7A2A" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M6.6 15.4 8 13.2M13.4 15.4 12 13.2" stroke="#D9431B" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="10" cy="17" r="1.1" fill="#F2B33A" />
     </svg>
   );
 }

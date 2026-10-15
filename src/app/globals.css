@@ -68,6 +68,26 @@ body {
   animation: thanks-in 0.35s ease-out both;
 }
 
+@keyframes chakra-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.chakra-spin {
+  animation: chakra-spin 36s linear infinite;
+  transform-origin: 50% 50%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chakra-spin {
+    animation: none;
+  }
+}
+
 /* Desktop browsers: show the screen inside a centred phone frame. */
 @media (min-width: 640px) {
   body {
