@@ -63,9 +63,20 @@ const FEATURES = [
   },
 ];
 
+/** Hanging lanterns over the header art. Percentages are of the 720x432 background box. */
+const LANTERNS = [
+  { key: "left-big", left: "10.3%", top: "-5.5%", width: "8.6%", duration: "4.6s", delay: "-0.8s" },
+  { key: "left-small", left: "3.63%", top: "14.6%", width: "4.7%", duration: "5.8s", delay: "-2.4s" },
+  { key: "right", left: "90.1%", top: "10.7%", width: "8.3%", duration: "5.2s", delay: "-3.6s" },
+];
+
+/** Shown count starts here. Each real Notify me registration adds one on top. */
+const BASE_INTEREST_COUNT = 1000;
+
 export function HomeScreen() {
   const [interested, setInterested] = useState(false);
-  const [interestCount, setInterestCount] = useState<number | null>(null);
+  /** Real Notify me registrations. The screen shows this on top of 1,000. */
+  const [interestCount, setInterestCount] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -92,7 +103,9 @@ export function HomeScreen() {
     try {
       const result = await registerInterest("home");
       setInterested(true);
-      if (Number.isFinite(result.interestCount)) setInterestCount(result.interestCount);
+      setInterestCount((current) =>
+        Number.isFinite(result.interestCount) ? result.interestCount : current + (result.created ? 1 : 0),
+      );
       postToNative({ type: "QUIZ_INTERESTED", payload: { created: result.created } });
     } catch (caught) {
       setError(caught instanceof QuizApiError ? caught.message : "Could not save your interest.");
@@ -101,20 +114,41 @@ export function HomeScreen() {
     }
   }
 
-  const interestLabel =
-    interestCount === null
-      ? "1,000+ people"
-      : `${interestCount.toLocaleString("en-IN")} ${interestCount === 1 ? "person" : "people"}`;
+  const shownInterest = BASE_INTEREST_COUNT + interestCount;
+  const interestLabel = `${shownInterest.toLocaleString("en-IN")} people`;
 
   return (
     <div className="relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-[linear-gradient(to_bottom,#FFF6EA_0%,#FEE6C7_40%,#FBECDE_66%,#FDF3E9_100%)] text-[#3A2E26]">
-      {/* Background layers: lanterns at the top, mandalas at the bottom */}
-      <img
-        src="/quiz/bg-top.jpg"
-        alt=""
-        draggable={false}
-        className="pointer-events-none absolute top-0 left-0 w-full select-none [-webkit-mask-image:linear-gradient(to_bottom,black_62%,transparent_100%)] [mask-image:linear-gradient(to_bottom,black_62%,transparent_100%)]"
-      />
+      {/* Background layers: lanterns at the top, mandalas at the bottom.
+          The lanterns are separate images so they can sway; bg-top-clean.jpg has them removed. */}
+      <div className="pointer-events-none absolute top-0 left-0 aspect-[720/432] w-full [-webkit-mask-image:linear-gradient(to_bottom,black_62%,transparent_100%)] [mask-image:linear-gradient(to_bottom,black_62%,transparent_100%)]">
+        <img
+          src="/quiz/bg-top-clean.jpg"
+          alt=""
+          draggable={false}
+          className="absolute inset-0 h-full w-full select-none"
+        />
+        {LANTERNS.map((lantern) => (
+          <div
+            key={lantern.key}
+            className="lantern-sway absolute"
+            style={{
+              left: lantern.left,
+              top: lantern.top,
+              width: lantern.width,
+              animationDuration: lantern.duration,
+              animationDelay: lantern.delay,
+            }}
+          >
+            <img
+              src="/quiz/lantern.webp"
+              alt=""
+              draggable={false}
+              className="block w-full select-none"
+            />
+          </div>
+        ))}
+      </div>
       <img
         src="/quiz/bg-bottom-plain.jpg"
         alt=""
@@ -122,7 +156,7 @@ export function HomeScreen() {
         className="pointer-events-none absolute bottom-0 left-0 w-full select-none [-webkit-mask-image:linear-gradient(to_top,black_45%,transparent_100%)] [mask-image:linear-gradient(to_top,black_45%,transparent_100%)]"
       />
       <style>{`@keyframes mandala-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
-      <div className="pointer-events-none absolute bottom-0 left-0 z-[1] w-[42%] -translate-x-1/2 translate-y-1/2">
+      <div className="pointer-events-none absolute bottom-[18px] left-0 z-[1] w-[42%] -translate-x-1/2 translate-y-[28%]">
         <img
           src="/quiz/mandala.png"
           alt=""
@@ -131,7 +165,7 @@ export function HomeScreen() {
           style={{ animation: "mandala-spin 18s linear infinite" }}
         />
       </div>
-      <div className="pointer-events-none absolute right-0 bottom-0 z-[1] w-[42%] translate-x-1/2 translate-y-1/2">
+      <div className="pointer-events-none absolute right-0 bottom-[18px] z-[1] w-[42%] translate-x-1/2 translate-y-[28%]">
         <img
           src="/quiz/mandala.png"
           alt=""
@@ -188,52 +222,43 @@ export function HomeScreen() {
         </div>
       </section>
 
-      {/* Potato scene: natural size right under the prize card; shrinks on short screens.
-          The floor glow (bottom 48px) runs behind the feature cards. */}
-      <div className="relative -mt-[12px] aspect-[720/301] min-h-0 w-full shrink">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 top-[62%] h-[calc(38%+220px)]"
-          style={{
-            background:
-              "radial-gradient(ellipse 85% 34% at 50% 30%, rgba(236,138,62,0.42), rgba(236,138,62,0) 100%), linear-gradient(to bottom, rgba(249,218,184,0) 0%, #F9DAB8 16%, #F8D6B0 44%, rgba(249,218,184,0) 100%)",
-          }}
-        />
+      {/* Full potato scene, uncropped at the top. The lower part may sit behind the feature cards. */}
+      <div className="relative z-0 -mt-[28px] -mb-[52px] w-full shrink-0">
         <img
           src="/quiz/potato-sack-scene.jpg"
           alt=""
           draggable={false}
-          className="pointer-events-none absolute bottom-[-48px] left-0 max-h-[calc(100%+128px)] w-full max-w-none object-cover object-bottom select-none [-webkit-mask-image:linear-gradient(to_bottom,transparent_0%,black_17%,black_84%,transparent_100%)] [mask-image:linear-gradient(to_bottom,transparent_0%,black_17%,black_84%,transparent_100%)]"
+          className="pointer-events-none block w-full select-none [-webkit-mask-image:linear-gradient(to_bottom,transparent_0%,rgba(0,0,0,0.25)_7%,black_20%,black_46%,rgba(0,0,0,0.45)_62%,transparent_82%)] [mask-image:linear-gradient(to_bottom,transparent_0%,rgba(0,0,0,0.25)_7%,black_20%,black_46%,rgba(0,0,0,0.45)_62%,transparent_82%)]"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 bottom-[8%] h-[42%]"
+          style={{
+            background:
+              "linear-gradient(to bottom, rgba(253,232,208,0) 0%, rgba(248,196,140,0.18) 28%, rgba(247,186,128,0.45) 58%, rgba(248,214,180,0) 100%)",
+          }}
         />
       </div>
 
       {/* Bottom stack */}
-      <footer className="relative z-10 flex flex-1 flex-col px-[30px] pt-[20px] pb-[clamp(28px,5dvh,48px)]">
+      <footer className="relative z-10 -mt-[42px] flex flex-1 flex-col px-[30px] pt-[8px] pb-[16px]">
         <div className="grid grid-cols-3 gap-[7px]">
           {FEATURES.map((feature) => (
             <article
               key={feature.key}
-              className="flex min-w-0 flex-col items-center rounded-[16px] border border-[#EDD3B0] bg-gradient-to-b from-[#FBEDD8] to-[#F7E3C6] px-1 pt-[11px] pb-[10px] text-center shadow-[0_6px_16px_rgba(150,85,30,0.12)]"
+              className="flex min-w-0 flex-col items-center rounded-[14px] border border-[#EDD3B0] bg-gradient-to-b from-[#FBEDD8] to-[#F7E3C6] px-1 pt-[6px] pb-[6px] text-center shadow-[0_6px_16px_rgba(150,85,30,0.12)]"
             >
-              <div className="flex h-[34px] items-center justify-center">
+              <div className="flex h-[28px] items-center justify-center">
                 {feature.icon}
               </div>
-              <p className="mt-[7px] text-[12.5px] leading-[15px] font-semibold text-[#222222]">
+              <p className="mt-[3px] text-[12px] leading-[14px] font-semibold text-[#222222]">
                 {feature.title}
               </p>
             </article>
           ))}
         </div>
 
-        <div className="relative z-10 mt-[12px] flex shrink-0 items-center gap-[8px] rounded-[14px] border border-[#F4DCBC] bg-[linear-gradient(180deg,rgba(255,242,226,0.96)_0%,rgba(253,232,208,0.96)_100%)] px-[10px] py-[8px] shadow-[0_6px_14px_rgba(175,95,35,0.10)]">
-          <RedTrophy className="h-[20px] w-[20px] shrink-0" />
-          <p className="min-w-0 flex-1 text-center text-[11px] leading-[14px] font-medium text-[#2E2420]">
-            Vijetaon ki ghoshna <span className="font-extrabold">1–10 November</span> ke
-            <br />
-            kul score ke aadhar par hogi.
-          </p>
-          <ConfettiBurst className="h-[16px] w-[16px] shrink-0" />
-        </div>
+        <WinnerSelectionCard />
 
         <div className="relative mt-[10px] flex items-center gap-[9px] rounded-[24px] bg-gradient-to-r from-[#FCF1E4] to-[#FDF5EC] py-[9px] pr-[12px] pl-[12px] shadow-[0_2px_4px_rgba(150,85,30,0.06),0_8px_20px_rgba(150,85,30,0.12)]">
           <div className="flex shrink-0 -space-x-[7px]">
@@ -252,7 +277,7 @@ export function HomeScreen() {
               {interestLabel}
             </span>
             <span className="mt-[3px] block text-[11px] leading-[14px] whitespace-nowrap text-[#595959]">
-              {interestCount === 1 ? "has shown interest in this quiz!" : "have shown interest in this quiz!"}
+              have shown interest in this quiz!
             </span>
           </p>
           <SparkleMark className="absolute top-[7px] right-[14px] h-[17px] w-[17px]" />
@@ -270,7 +295,7 @@ export function HomeScreen() {
             >
               <DiyaIcon tone="light" className="absolute top-1/2 left-[16px] h-[20px] w-[23px] -translate-y-1/2 opacity-80" />
               <BellIcon className="h-[19px] w-[19px]" />
-              <span>{saving ? "Saving…" : "I'm Interested"}</span>
+              <span>{saving ? "Saving…" : "Notify me"}</span>
               <ArrowIcon className="h-[19px] w-[19px]" />
               <DiyaIcon tone="light" className="absolute top-1/2 right-[16px] h-[20px] w-[23px] -translate-y-1/2 opacity-80" />
             </button>
@@ -282,15 +307,6 @@ export function HomeScreen() {
             </p>
           )}
 
-          {!interested && (
-            <p className="mt-[22px] flex items-center justify-center gap-[5px] text-[11.5px] leading-none text-[#6B6B6B]">
-              <InfoIcon className="h-[12px] w-[12px] shrink-0" />
-              <span>
-                Quiz will start from{" "}
-                <span className="font-bold text-[#DE4D1C]">1st November 2024.</span>
-              </span>
-            </p>
-          )}
         </div>
       </footer>
     </div>
@@ -392,6 +408,36 @@ function OrnamentLine({ className }: IconProps) {
   );
 }
 
+const WINNER_RULES = [
+  "1-10 नवंबर के कुल स्कोर के आधार पर विजेताओं की घोषणा की जाएगी।",
+  "रोज खेल और अपना स्कोर जितना हो सके बढ़ाए। कोई भी आज का क्विज़ मिस न करें।",
+  "विजेताओं की घोषणा और उनसे संपर्क 30 नवंबर तक किया जाएगा।",
+  "यदि कुल स्कोर समान (टाई) होता है, तो सभी क्विज़ को कम समय में पूरा करने वाले प्रतिभागी को प्राथमिकता दी जाएगी।",
+];
+
+function WinnerSelectionCard() {
+  return (
+    <section className="relative z-10 mt-[12px] shrink-0 overflow-hidden rounded-[16px] border border-[#F3D7B4] bg-[linear-gradient(180deg,#FFF6EA_0%,#FDECD6_100%)] px-[12px] pt-[10px] pb-[10px] shadow-[0_6px_14px_rgba(175,95,35,0.10)]">
+      <ConfettiBurst className="pointer-events-none absolute top-[8px] right-[10px] h-[22px] w-[22px] opacity-80" />
+      <ConfettiBurst className="pointer-events-none absolute top-[28px] right-[28px] h-[14px] w-[14px] opacity-70" />
+      <div className="flex items-center gap-[8px] pr-[28px]">
+        <RedTrophy className="h-[22px] w-[22px] shrink-0" />
+        <h2 className="text-[13.5px] leading-[17px] font-extrabold text-[#E24A1C]">विजेताओं का चयन कैसे होगा?</h2>
+      </div>
+      <ol className="mt-[8px] flex flex-col gap-[7px]">
+        {WINNER_RULES.map((rule, index) => (
+          <li key={rule} className="flex items-start gap-[8px]">
+            <span className="mt-[1px] flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded-full bg-[#F08A2E] text-[9px] font-black text-white">
+              {index + 1}
+            </span>
+            <span className="text-[11px] leading-[15px] font-medium text-[#3A312C]">{rule}</span>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
 function RedTrophy({ className }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
@@ -450,7 +496,7 @@ function FireworkBurst({ className }: IconProps) {
 
 function FeatureBadge({ children }: { children: ReactNode }) {
   return (
-    <span className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-[#F9D3AE]">
+    <span className="flex h-[28px] w-[28px] items-center justify-center rounded-full bg-[#F9D3AE]">
       {children}
     </span>
   );

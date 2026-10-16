@@ -88,6 +88,28 @@ body {
   }
 }
 
+/* Hanging lanterns swing gently left and right, pivoting on the top of their cord. */
+@keyframes lantern-sway {
+  0%, 100% {
+    transform: rotate(-3.2deg);
+  }
+  50% {
+    transform: rotate(3.2deg);
+  }
+}
+
+.lantern-sway {
+  animation: lantern-sway 5s ease-in-out infinite;
+  transform-origin: 50% 0%;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lantern-sway {
+    animation: none;
+  }
+}
+
 /* Desktop browsers: show the screen inside a centred phone frame. */
 @media (min-width: 640px) {
   body {
