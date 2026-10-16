@@ -59,8 +59,19 @@ export type QuizContest = {
   playableDay: number | null;
 };
 
+export type QuizPlayerStatus = {
+  totalPoints: number;
+  daysPlayed: number;
+  attemptedDays: number[];
+  remainingDays: number[];
+  /** True when the server already has an attempt for the current playable day. */
+  hasAttemptedToday: boolean;
+  /** False once today's quiz is done, or when no day can be played. */
+  canPlayToday: boolean;
+};
+
 export function fetchQuizStatus() {
-  return request<{ contest: QuizContest }>("/status");
+  return request<{ contest: QuizContest; player: QuizPlayerStatus }>("/status");
 }
 
 /* ---------- POST /attempts ---------- */

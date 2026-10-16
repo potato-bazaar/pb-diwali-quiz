@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { QuizHomeScreen } from "@/screens/quiz-home-screen";
 import { postToNative } from "@/lib/native-bridge";
+import { useContestDay } from "@/lib/use-contest-day";
 
 const AVATARS = ["/quiz/avatar-1.jpg", "/quiz/avatar-3.jpg", "/quiz/avatar-2.jpg"];
 
@@ -41,18 +43,53 @@ const FEATURES = [
   },
 ];
 
+/** Hanging lanterns over the header art. Percentages are of the 720x432 background box. */
+const LANTERNS = [
+  { key: "left-big", left: "10.3%", top: "-5.5%", width: "8.6%", duration: "4.6s", delay: "-0.8s" },
+  { key: "left-small", left: "3.63%", top: "14.6%", width: "4.7%", duration: "5.8s", delay: "-2.4s" },
+  { key: "right", left: "90.1%", top: "10.7%", width: "8.3%", duration: "5.2s", delay: "-3.6s" },
+];
+
 export function HomeScreen() {
+  const contest = useContestDay();
   const [interested, setInterested] = useState(false);
+  // Once the admin has started the quiz, the "1st November" screen is gone.
+  if (contest?.contest?.isLive && contest.day >= 1) {
+    return <QuizHomeScreen />;
+  }
 
   return (
     <div className="relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-[linear-gradient(to_bottom,#FFF6EA_0%,#FEE6C7_40%,#FBECDE_66%,#FDF3E9_100%)] text-[#3A2E26]">
-      {/* Background layers: lanterns at the top, mandalas at the bottom */}
-      <img
-        src="/quiz/bg-top.jpg"
-        alt=""
-        draggable={false}
-        className="pointer-events-none absolute top-0 left-0 w-full select-none [-webkit-mask-image:linear-gradient(to_bottom,black_62%,transparent_100%)] [mask-image:linear-gradient(to_bottom,black_62%,transparent_100%)]"
-      />
+      {/* Background layers: lanterns at the top, mandalas at the bottom.
+          The lanterns are separate images so they can sway; bg-top-clean.jpg has them removed. */}
+      <div className="pointer-events-none absolute top-0 left-0 aspect-[720/432] w-full [-webkit-mask-image:linear-gradient(to_bottom,black_62%,transparent_100%)] [mask-image:linear-gradient(to_bottom,black_62%,transparent_100%)]">
+        <img
+          src="/quiz/bg-top-clean.jpg"
+          alt=""
+          draggable={false}
+          className="absolute inset-0 h-full w-full select-none"
+        />
+        {LANTERNS.map((lantern) => (
+          <div
+            key={lantern.key}
+            className="lantern-sway absolute"
+            style={{
+              left: lantern.left,
+              top: lantern.top,
+              width: lantern.width,
+              animationDuration: lantern.duration,
+              animationDelay: lantern.delay,
+            }}
+          >
+            <img
+              src="/quiz/lantern.webp"
+              alt=""
+              draggable={false}
+              className="block w-full select-none"
+            />
+          </div>
+        ))}
+      </div>
       <img
         src="/quiz/bg-bottom.jpg"
         alt=""

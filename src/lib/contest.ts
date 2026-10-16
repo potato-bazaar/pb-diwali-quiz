@@ -34,7 +34,10 @@ export function contestDayFor(now: Date): ContestDayNumber {
 
 /** Today's contest day from the device clock; used only when the backend can't be reached. */
 export function resolveContestDay(): ContestDayNumber {
-  return contestDayFor(new Date());
+  const day = contestDayFor(new Date());
+  // Local testing only. Production stays locked to 1–10 November.
+  if (process.env.NODE_ENV !== "production" && day === UPCOMING) return 1;
+  return day;
 }
 
 export function getQuizDay(day: number): QuizDay {

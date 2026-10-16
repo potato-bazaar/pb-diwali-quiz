@@ -87,7 +87,11 @@ export function QuizPlayScreen() {
     <div className="relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-[linear-gradient(to_bottom,#FDF1E3_0%,#FDF3E6_45%,#FCEEDD_70%,#FBE3CA_100%)] text-[#141B36]">
       <PlayBackdrop />
       {contestState === null ? null : contestState.day >= 1 ? (
-        <DayQuiz key={contestState.day} quiz={getQuizDay(contestState.day)} />
+        <DayQuiz
+          key={contestState.day}
+          quiz={getQuizDay(contestState.day)}
+          alreadyPlayed={contestState.playedToday}
+        />
       ) : (
         <ContestClosed state={contestState} />
       )}
@@ -103,7 +107,7 @@ function useExit() {
   };
 }
 
-function DayQuiz({ quiz }: { quiz: QuizDay }) {
+function DayQuiz({ quiz, alreadyPlayed }: { quiz: QuizDay; alreadyPlayed: boolean }) {
   const router = useRouter();
   const exit = useExit();
   /** After the result screen: the home page variant that points to the leaderboard. */
@@ -112,7 +116,15 @@ function DayQuiz({ quiz }: { quiz: QuizDay }) {
     router.push("/completed");
   };
   const total = quiz.questions.length;
-  const [submitted, setSubmitted] = useState<SubmittedAttempt | null>(() => loadAttempt(quiz.day));
+  // An attempt already stored when this screen opens means this day is finished.
+  // Coming back into the quiz must not deal the questions again.
+  const openedDone = useRef(loadAttempt(quiz.day) !== null || alreadyPlayed);
+  useEffect(() => {
+    if (openedDone.current) router.replace("/");
+  }, [router]);
+  const [submitted, setSubmitted] = useState<SubmittedAttempt | null>(() =>
+    openedDone.current ? loadAttempt(quiz.day) : null,
+  );
   const [sync, setSync] = useState<SyncState | null>(() =>
     submitted && !submitted.synced ? { status: "saving" } : null,
   );
@@ -266,6 +278,8 @@ function DayQuiz({ quiz }: { quiz: QuizDay }) {
     }, 1000);
     return () => clearInterval(tick);
   }, [index, picked, submitted]);
+
+  if (openedDone.current) return null;
 
   if (submitted) {
     return <ResultCard attempt={submitted} quiz={quiz} sync={sync} onRetrySync={retrySync} onExit={finish} />;
@@ -654,12 +668,13 @@ function ResultCard({
         <CloseIcon className="h-[24px] w-[24px] drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]" />
       </button>
 
-      {/* Score card with the badge tab on top, over the sky; the gift and potatoes overlap its lower edge */}
-      <section className="absolute inset-x-0 top-[27%] mx-auto w-[calc(100%-64px)] max-w-[300px] rounded-[26px] bg-[linear-gradient(to_bottom,#FFFCF6,#FBF0DE)] px-[18px] pt-[clamp(40px,5.6dvh,48px)] pb-[clamp(16px,2.6dvh,24px)] shadow-[0_14px_34px_rgba(190,110,50,0.20)]">
-        <div className="absolute top-[-34px] left-1/2 flex h-[78px] w-[78px] -translate-x-1/2 items-center justify-center rounded-full bg-[#FFFCF6] shadow-[0_-6px_12px_rgba(190,110,50,0.10)]">
-          <span className="flex h-[56px] w-[56px] items-center justify-center rounded-full bg-[radial-gradient(circle_at_35%_30%,#4FCB6A,#23963F)] shadow-[0_4px_10px_rgba(35,150,63,0.35)]">
+      <div className="relative z-[1] px-[22px] pt-[clamp(112px,19dvh,156px)]">
+      {/* Score card sits in the sky; the gift and diya are drawn over its left and right edges */}
+      <section className="relative mx-auto w-full max-w-[330px] shrink-0 overflow-visible rounded-[28px] bg-[#FFF9F1] px-[14px] pt-[44px] pb-[14px] shadow-[0_16px_36px_rgba(160,80,30,0.22)]">
+        <div className="absolute top-[-32px] left-1/2 flex h-[72px] w-[72px] -translate-x-1/2 items-center justify-center rounded-full bg-[#FFF9F1] shadow-[0_8px_16px_rgba(160,80,30,0.08)]">
+          <span className="flex h-[54px] w-[54px] items-center justify-center rounded-full bg-[radial-gradient(circle_at_32%_28%,#5ED67A,#2EAE4A)] shadow-[0_6px_14px_rgba(36,150,60,0.38)]">
             <svg viewBox="0 0 24 24" className="h-[30px] w-[30px]" fill="none" aria-hidden="true">
-              <path d="M5.5 12.5l4.2 4.2L18.5 7.8" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M5.2 12.4l4.3 4.3L18.8 7.4" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </span>
         </div>
@@ -667,38 +682,61 @@ function ResultCard({
           <span
             key={piece.key}
             aria-hidden="true"
-            className="pointer-events-none absolute h-[9px] w-[5px] rounded-[1.5px]"
+            className="pointer-events-none absolute h-[11px] w-[6px] rounded-[2px]"
             style={piece.style}
           />
         ))}
-        <p className="relative font-display text-[clamp(24px,3.4dvh,28px)] leading-[1.15] font-extrabold text-[#23963F]">
+        <p className="relative font-display text-[26px] leading-[1.1] font-extrabold text-[#24963F]">
           Total Score
         </p>
-        <p className="relative mt-[clamp(4px,1dvh,8px)] font-display text-[clamp(17px,2.4dvh,20px)] leading-[1.2] font-bold text-[#141B36]">
+        <p className="relative mt-[8px] font-display text-[18px] leading-[1.2] font-extrabold text-[#1A2142]">
           You Scored
         </p>
-        <p
-          className={`relative mt-[2px] bg-gradient-to-b from-[#EE5A24] to-[#B9280F] bg-clip-text font-display leading-[1.1] font-black tracking-[-0.02em] whitespace-nowrap text-transparent ${
-            attempt.points >= 100 ? "text-[clamp(36px,5.2dvh,44px)]" : "text-[clamp(44px,6.6dvh,56px)]"
-          }`}
-        >
+        <p className="relative mt-[2px] font-display text-[52px] leading-[1.02] font-black tracking-[-0.03em] whitespace-nowrap text-[#E24A1C]">
           {attempt.points} Points
         </p>
-        <p className="relative mt-[clamp(4px,0.8dvh,8px)] text-[13.5px] font-medium text-[#7A6A5C]">
-          {attempt.correct}/{quiz.questions.length} sahi jawab
+        <p className="relative mt-[6px] text-[14px] font-semibold text-[#8A6244]">
+          {attempt.correct}/{quiz.questions.length} सही जवाब
         </p>
-        <SyncNote sync={sync} onRetry={onRetrySync} />
-      </section>
 
-      {/* Same scene with only the foreground objects kept, drawn over the card */}
+        <div className="relative mt-[16px] grid grid-cols-2 gap-[10px]">
+          <div className="rounded-[16px] bg-[#FFF1E6] px-[8px] py-[12px] text-center">
+            <ScoreTrophy className="mx-auto h-[32px] w-[32px]" />
+            <p className="mt-[6px] text-[12.5px] leading-[16px] font-bold text-[#D2652E]">आज का स्कोर</p>
+            <p className="mt-[2px] font-display text-[30px] leading-none font-black text-[#E24A1C]">{attempt.points}</p>
+          </div>
+          <div className="rounded-[16px] bg-[#F1F7EE] px-[8px] py-[12px] text-center">
+            <ScoreStar className="mx-auto h-[32px] w-[32px]" />
+            <p className="mt-[6px] text-[12.5px] leading-[16px] font-bold text-[#2E8A45]">अब तक का कुल स्कोर</p>
+            <p className="mt-[2px] font-display text-[30px] leading-none font-black text-[#24963F]">{overallPoints(sync, attempt.points)}</p>
+          </div>
+        </div>
+      </section>
+      </div>
+
       <img
         src="/quiz/result-fg.webp"
         alt=""
         draggable={false}
-        className="pointer-events-none absolute inset-0 z-[1] h-full w-full object-cover object-top select-none"
+        className="pointer-events-none absolute inset-0 z-[2] h-full w-full object-cover object-top select-none"
       />
 
-      <div className="absolute inset-x-0 bottom-[clamp(36px,11%,104px)] z-[2] mx-auto flex w-[calc(100%-44px)] max-w-[330px] flex-col gap-[clamp(12px,1.8dvh,16px)]">
+      <div className="absolute inset-x-0 bottom-[clamp(16px,3.2dvh,32px)] z-[3] mx-auto flex w-[calc(100%-44px)] max-w-[330px] flex-col gap-[12px]">
+      <section className="relative w-full shrink-0 overflow-hidden rounded-[18px] bg-[linear-gradient(180deg,#FFF8EE_0%,#FFF3E4_100%)] px-[8px] py-[12px] text-left shadow-[0_8px_18px_rgba(190,110,50,0.12)]">
+        <CalendarDiya className="pointer-events-none absolute top-1/2 left-[2px] h-[58px] w-[58px] -translate-y-1/2" />
+        <FireworkBurst className="pointer-events-none absolute top-[2px] right-[2px] h-[48px] w-[48px]" />
+        <div className="pl-[50px] pr-[40px]">
+          <p className="text-[14.5px] leading-[19px] font-extrabold text-[#E1262A]">आज का क्विज़ पूरा हुआ!</p>
+          <p className="text-[14.5px] leading-[19px] font-extrabold text-[#1A2142]">कल फिर आइए, नए सवालों के साथ!</p>
+          <p className="mt-[4px] text-[12px] leading-[16px] font-semibold text-[#7A7168]">
+            10 दिनों तक खेलें और अपना कुल स्कोर बढ़ाएँ।
+          </p>
+        </div>
+      </section>
+
+      <SyncNote sync={sync} onRetry={onRetrySync} />
+
+      <div className="flex w-full flex-col gap-[12px]">
         <button
           type="button"
           onClick={() => {
@@ -732,7 +770,168 @@ function ResultCard({
           Back to Home
         </button>
       </div>
+      </div>
     </div>
+  );
+}
+
+function overallPoints(sync: SyncState | null, today: number) {
+  if (sync?.status === "saved" && sync.totalPoints !== null) return sync.totalPoints;
+  return today;
+}
+
+function ScoreTrophy({ className }: IconProps) {
+  const id = useId().replace(/:/g, "");
+  return (
+    <svg viewBox="0 0 48 48" className={className} aria-hidden="true">
+      <defs>
+        <linearGradient id={`${id}-cup`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#FFE98A" />
+          <stop offset="48%" stopColor="#F6C431" />
+          <stop offset="100%" stopColor="#E39B12" />
+        </linearGradient>
+        <linearGradient id={`${id}-base`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#F0B033" />
+          <stop offset="100%" stopColor="#D4890C" />
+        </linearGradient>
+      </defs>
+      <path
+        d="M15.2 12.2H12.6c-2.5 0-4.2 1.8-4.2 4 0 2.5 2 4.3 4.6 4.6"
+        fill="none"
+        stroke={`url(#${id}-cup)`}
+        strokeWidth="2.4"
+        strokeLinecap="round"
+      />
+      <path
+        d="M32.8 12.2h2.6c2.5 0 4.2 1.8 4.2 4 0 2.5-2 4.3-4.6 4.6"
+        fill="none"
+        stroke={`url(#${id}-cup)`}
+        strokeWidth="2.4"
+        strokeLinecap="round"
+      />
+      <path
+        fill={`url(#${id}-cup)`}
+        d="M16.4 7.4h15.2c.9 0 1.6.7 1.6 1.6v7.2c0 4.8-4 8.4-9.2 8.4s-9.2-3.6-9.2-8.4V9c0-.9.7-1.6 1.6-1.6Z"
+      />
+      <path d="M20 10.2c.5 2.8.6 5.4.1 8" fill="none" stroke="#FFF6C8" strokeWidth="1.5" strokeLinecap="round" />
+      <rect x="22.3" y="24.4" width="3.4" height="4.6" rx="0.7" fill={`url(#${id}-base)`} />
+      <rect x="16.4" y="28.8" width="15.2" height="4" rx="1.3" fill={`url(#${id}-base)`} />
+    </svg>
+  );
+}
+
+function ScoreStar({ className }: IconProps) {
+  const id = useId().replace(/:/g, "");
+  return (
+    <svg viewBox="0 0 48 48" className={className} aria-hidden="true">
+      <defs>
+        <linearGradient id={`${id}-star`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#FFE56A" />
+          <stop offset="100%" stopColor="#F0B429" />
+        </linearGradient>
+      </defs>
+      <path
+        fill={`url(#${id}-star)`}
+        stroke={`url(#${id}-star)`}
+        strokeWidth="3.2"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        d="M24 8.2 28.4 18.2 39.2 19 31 26.4 33.6 37 24 31.4 14.4 37 17 26.4 8.8 19 19.6 18.2Z"
+      />
+    </svg>
+  );
+}
+
+function CalendarDiya({ className }: IconProps) {
+  const cells = [0, 1, 2].flatMap((row) => [0, 1, 2].map((col) => ({ row, col })));
+  return (
+    <svg viewBox="0 0 96 96" className={className} aria-hidden="true">
+      <rect x="8" y="18" width="9" height="5" rx="2" fill="#F6C14A" transform="rotate(-28 12 20)" />
+      <rect x="4" y="40" width="8" height="4.5" rx="1.6" fill="#F08A2A" transform="rotate(18 8 42)" />
+      <rect x="10" y="64" width="7" height="4" rx="1.4" fill="#E5533D" transform="rotate(-18 13 66)" />
+      <rect x="72" y="14" width="8" height="4.5" rx="1.6" fill="#F6C14A" transform="rotate(24 76 16)" />
+      <rect x="78" y="34" width="7" height="4" rx="1.4" fill="#F08A2A" transform="rotate(-12 81 36)" />
+      <rect x="30" y="8" width="6.5" height="14" rx="3.2" fill="#E7C48A" />
+      <rect x="50" y="8" width="6.5" height="14" rx="3.2" fill="#E7C48A" />
+      <rect x="31.4" y="9.5" width="2.2" height="9" rx="1.1" fill="#F8E6C2" />
+      <rect x="51.4" y="9.5" width="2.2" height="9" rx="1.1" fill="#F8E6C2" />
+      <rect x="18" y="18" width="50" height="52" rx="8" fill="#FFFFFF" />
+      <path d="M18 28v-4a8 8 0 0 1 8-8h34a8 8 0 0 1 8 8v4H18Z" fill="#E1262A" />
+      {cells.map(({ row, col }) => (
+        <rect
+          key={`${row}-${col}`}
+          x={26 + col * 12}
+          y={34 + row * 11}
+          width="8"
+          height="7"
+          rx="1.6"
+          fill="#F3E4D8"
+        />
+      ))}
+      <path d="M62 52c2.6 4.2 4 6.8 4 9.4a4 4 0 0 1-8 0c0-2.6 1.4-5.2 4-9.4Z" fill="#FFD15A" />
+      <path d="M62 58c1.1 1.8 1.7 3 1.7 4.2a1.7 1.7 0 0 1-3.4 0c0-1.2.6-2.4 1.7-4.2Z" fill="#FFF6C8" />
+      <path d="M50 66c1.4 6.2 5.6 9.6 12 9.6s10.6-3.4 12-9.6c-2.6 2.2-6.8 3.4-12 3.4s-9.4-1.2-12-3.4Z" fill="#E07A32" />
+      <path d="M53 66.4c1 3.6 3.6 5.6 9 5.6s8-2 9-5.6c-1.8 1.4-5 2.2-9 2.2s-7.2-.8-9-2.2Z" fill="#C45A22" />
+      <circle cx="56" cy="65.2" r="0.7" fill="#FFF6E8" />
+      <circle cx="59.2" cy="64.4" r="0.7" fill="#FFF6E8" />
+      <circle cx="62.4" cy="64.2" r="0.7" fill="#FFF6E8" />
+      <circle cx="65.6" cy="64.6" r="0.7" fill="#FFF6E8" />
+      <circle cx="68.4" cy="65.6" r="0.7" fill="#FFF6E8" />
+    </svg>
+  );
+}
+
+function FireworkBurst({ className }: IconProps) {
+  const id = useId().replace(/:/g, "");
+  const rays = [
+    { angle: -90, len: 27, width: 7.2 },
+    { angle: -60, len: 20, width: 5.2 },
+    { angle: -30, len: 26, width: 6.4 },
+    { angle: 0, len: 18, width: 4.8 },
+    { angle: 30, len: 25, width: 6.2 },
+    { angle: 60, len: 19, width: 5 },
+    { angle: 90, len: 26, width: 6.6 },
+    { angle: 120, len: 18, width: 4.8 },
+    { angle: 150, len: 24, width: 6 },
+    { angle: 180, len: 19, width: 5 },
+    { angle: 210, len: 27, width: 6.8 },
+    { angle: 240, len: 18, width: 4.6 },
+  ];
+  return (
+    <svg viewBox="0 0 64 64" className={className} aria-hidden="true">
+      <defs>
+        <radialGradient id={`${id}-ray`} cx="50%" cy="50%" r="55%">
+          <stop offset="0%" stopColor="#FFF3C4" />
+          <stop offset="38%" stopColor="#F6C04A" />
+          <stop offset="100%" stopColor="#E25A1C" />
+        </radialGradient>
+      </defs>
+      <circle cx="32" cy="32" r="11" fill="#FFE7A8" opacity="0.55" />
+      {rays.map((ray) => {
+        const rad = (ray.angle * Math.PI) / 180;
+        const cos = Math.cos(rad);
+        const sin = Math.sin(rad);
+        const px = -sin;
+        const py = cos;
+        const inner = 4;
+        const half = ray.width / 2;
+        const tipX = 32 + cos * ray.len;
+        const tipY = 32 + sin * ray.len;
+        const left = `${(32 + cos * inner + px * half).toFixed(2)} ${(32 + sin * inner + py * half).toFixed(2)}`;
+        const right = `${(32 + cos * inner - px * half).toFixed(2)} ${(32 + sin * inner - py * half).toFixed(2)}`;
+        const c1 = `${(32 + cos * (ray.len - 4) + px * half * 0.28).toFixed(2)} ${(32 + sin * (ray.len - 4) + py * half * 0.28).toFixed(2)}`;
+        const c2 = `${(32 + cos * (ray.len - 4) - px * half * 0.28).toFixed(2)} ${(32 + sin * (ray.len - 4) - py * half * 0.28).toFixed(2)}`;
+        return (
+          <path
+            key={ray.angle}
+            fill={`url(#${id}-ray)`}
+            d={`M ${left} Q ${c1} ${tipX.toFixed(2)} ${tipY.toFixed(2)} Q ${c2} ${right} Z`}
+          />
+        );
+      })}
+      <circle cx="32" cy="32" r="5.5" fill="#FFE9A6" />
+      <circle cx="32" cy="32" r="2.6" fill="#FFF8E4" />
+    </svg>
   );
 }
 
@@ -764,12 +963,12 @@ function SyncNote({ sync, onRetry }: { sync: SyncState | null; onRetry: () => vo
 }
 
 const CONFETTI: { key: string; style: CSSProperties }[] = [
-  { key: "a", style: { top: 22, left: 26, background: "#F2A33A", transform: "rotate(-30deg)" } },
-  { key: "b", style: { top: 64, left: 14, background: "#E5533D", transform: "rotate(25deg)" } },
-  { key: "c", style: { top: 30, right: 30, background: "#E5533D", transform: "rotate(40deg)" } },
-  { key: "d", style: { top: 78, right: 16, background: "#F2C14A", transform: "rotate(-20deg)" } },
-  { key: "e", style: { bottom: 26, left: 30, background: "#F2C14A", transform: "rotate(60deg)" } },
-  { key: "f", style: { bottom: 34, right: 34, background: "#F2A33A", transform: "rotate(-55deg)" } },
+  { key: "a", style: { top: 28, left: 16, background: "#F2C14A", transform: "rotate(-30deg)" } },
+  { key: "b", style: { top: 72, left: 12, background: "#E5533D", transform: "rotate(26deg)" } },
+  { key: "c", style: { top: 128, left: 22, background: "#3CB85A", transform: "rotate(52deg)" } },
+  { key: "d", style: { top: 34, right: 16, background: "#E5533D", transform: "rotate(36deg)" } },
+  { key: "e", style: { top: 86, right: 12, background: "#F2C14A", transform: "rotate(-18deg)" } },
+  { key: "f", style: { top: 140, right: 20, background: "#3CB85A", transform: "rotate(-48deg)" } },
 ];
 
 /* ---------- Icons ---------- */

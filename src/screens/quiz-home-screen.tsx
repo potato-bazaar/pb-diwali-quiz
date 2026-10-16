@@ -1,8 +1,9 @@
 "use client";
 
-import { type CSSProperties, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { QUESTION_BANK } from "@/data/question-bank";
+import { loadAttempt, resolveContestDay } from "@/lib/contest";
 import { postToNative } from "@/lib/native-bridge";
 import { useContestDay } from "@/lib/use-contest-day";
 
@@ -40,47 +41,22 @@ const HOME_PRIZES: {
   },
 ];
 
-const FEATURES: { key: string; icon: ReactNode; label: ReactNode }[] = [
-  {
-    key: "simple",
-    icon: <BulbIcon className="h-[26px] w-[26px]" />,
-    label: (
-      <>
-        Simple
-        <br />
-        Questions
-      </>
-    ),
-  },
-  {
-    key: "fun",
-    icon: <SmileIcon className="h-[26px] w-[26px]" />,
-    label: (
-      <>
-        Fun &amp;
-        <br />
-        Interesting
-      </>
-    ),
-  },
-  {
-    key: "prizes",
-    icon: <PrizeIcon className="h-[26px] w-[26px]" />,
-    label: (
-      <>
-        Win Exciting
-        <br />
-        Prizes
-      </>
-    ),
-  },
-];
-
 /** `completed`: shown after today's quiz is done, with a leaderboard link instead of Start Quiz. */
 export function QuizHomeScreen({ completed = false }: { completed?: boolean }) {
   const router = useRouter();
-  const day = useContestDay()?.day ?? null;
+  const contestState = useContestDay();
+  const [clockDay, setClockDay] = useState<number | null>(null);
+  useEffect(() => {
+    setClockDay(resolveContestDay());
+  }, []);
+  const day = contestState?.day ?? clockDay;
   const isLastDay = day !== null && day >= QUESTION_BANK.length;
+  const savedToday = day !== null && day >= 1 && loadAttempt(day) !== null;
+  const ready = day !== null;
+  const playedToday = savedToday || (contestState?.playedToday ?? false);
+  // Right after the quiz, `/completed` shows this screen before the day check returns.
+  // Once the day is known, only a real attempt for that day keeps Start Quiz hidden.
+  const done = playedToday || (completed && !ready);
 
   return (
     <div className="relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-[linear-gradient(to_bottom,#FFF4E6_0%,#FDE9D3_45%,#FCEEDF_75%,#FDF4EA_100%)] text-[#2A2A2A]">
@@ -198,33 +174,16 @@ export function QuizHomeScreen({ completed = false }: { completed?: boolean }) {
         </div>
       </section>
 
-      <div className="@container relative z-10 mx-[14px] mt-[8px] flex shrink-0 items-center gap-[8px] rounded-[14px] border border-[#F4DCBC] bg-[linear-gradient(180deg,rgba(255,242,226,0.94)_0%,rgba(253,232,208,0.94)_100%)] py-[9px] pr-[26px] pl-[10px] shadow-[0_6px_14px_rgba(175,95,35,0.10)]">
-        <RedTrophy className="h-[22px] w-[22px] shrink-0" />
-        <p className="min-w-0 flex-1 truncate text-[clamp(8px,2.95cqw,10px)] leading-[14px] font-medium text-[#2E2420]">
-          Vijetaon ki ghoshna <span className="font-extrabold">1–10 November</span> ke kul score ke aadhar par hogi.
-        </p>
-        <ConfettiBurst className="absolute top-1/2 right-[6px] h-[17px] w-[17px] -translate-y-1/2" />
-      </div>
+      <WinnerSelectionCard />
 
-      {/* Features + CTA */}
-      <footer className="relative z-10 flex flex-1 flex-col justify-evenly px-[26px] pt-[16px] pb-[clamp(24px,5dvh,48px)]">
-        <ul className="grid grid-cols-3 gap-[8px]">
-          {FEATURES.map((feature) => (
-            <li key={feature.key} className="flex flex-col items-center text-center">
-              <span className="flex h-[54px] w-[54px] items-center justify-center rounded-full bg-[#F8C59A]">
-                {feature.icon}
-              </span>
-              <span className="mt-[8px] text-[13.5px] leading-[17px] font-medium text-[#2E2E2E]">
-                {feature.label}
-              </span>
-            </li>
-          ))}
-        </ul>
+      {/* CTA */}
+      <footer className="relative z-10 flex flex-1 flex-col justify-start px-[26px] pt-[4px] pb-[clamp(24px,5dvh,48px)]">
 
+        {ready || completed ? (
         <button
           type="button"
           onClick={() => {
-            if (completed) {
+            if (done) {
               postToNative({ type: "QUIZ_LEADERBOARD" });
               router.push("/leaderboard");
             } else {
@@ -232,7 +191,7 @@ export function QuizHomeScreen({ completed = false }: { completed?: boolean }) {
               router.push("/play");
             }
           }}
-          className="relative mt-[20px] flex h-[58px] w-full items-center justify-center gap-[12px] rounded-full bg-gradient-to-r from-[#F2742C] via-[#EC5F24] to-[#E2461C] text-[21px] font-bold text-white shadow-[0_12px_26px_rgba(226,80,28,0.38)] active:scale-[0.98]"
+          className="relative mt-[12px] flex h-[58px] w-full items-center justify-center gap-[12px] rounded-full bg-gradient-to-r from-[#F2742C] via-[#EC5F24] to-[#E2461C] text-[21px] font-bold text-white shadow-[0_12px_26px_rgba(226,80,28,0.38)] active:scale-[0.98]"
         >
           <span className="pointer-events-none absolute top-1/2 left-[8px] flex h-[62px] w-[62px] -translate-y-1/2 items-center justify-center rounded-full bg-[radial-gradient(circle,rgba(255,226,160,0.55)_0%,rgba(255,200,120,0.18)_45%,rgba(255,200,120,0)_70%)]">
             <img
@@ -242,7 +201,7 @@ export function QuizHomeScreen({ completed = false }: { completed?: boolean }) {
               className="h-[60px] w-[60px] object-contain select-none [filter:brightness(1.5)_saturate(1.2)_drop-shadow(0_0_4px_rgba(255,236,170,0.95))]"
             />
           </span>
-          <span>{completed ? "View Leaderboard" : "Start Quiz"}</span>
+          <span>{done ? "View Leaderboard" : "Start Quiz"}</span>
           <ArrowIcon className="h-[22px] w-[22px]" />
           <img
             src="/quiz/diya.png"
@@ -251,7 +210,10 @@ export function QuizHomeScreen({ completed = false }: { completed?: boolean }) {
             className="pointer-events-none absolute right-[4px] bottom-[-26px] h-[60px] w-[60px] object-contain select-none drop-shadow-[0_6px_8px_rgba(120,40,10,0.35)]"
           />
         </button>
-        {completed && (
+        ) : (
+          <div className="mt-[12px] h-[58px]" />
+        )}
+        {done && (
           <p className="mt-[12px] flex items-center justify-center gap-[6px] text-[13.5px] leading-[18px] font-semibold text-[#8A4A1E]">
             <ClockIcon className="h-[15px] w-[15px] shrink-0" />
             {isLastDay ? "Last quiz done! Winners will be announced soon." : "New quiz goes live tomorrow!"}
@@ -318,6 +280,36 @@ function OrnamentLine({ className }: IconProps) {
   );
 }
 
+const WINNER_RULES = [
+  "1-10 नवंबर के कुल स्कोर के आधार पर विजेताओं की घोषणा की जाएगी।",
+  "रोज खेल और अपना स्कोर जितना हो सके बढ़ाए। कोई भी आज का क्विज़ मिस न करें।",
+  "विजेताओं की घोषणा और उनसे संपर्क 30 नवंबर तक किया जाएगा।",
+  "यदि कुल स्कोर समान (टाई) होता है, तो सभी क्विज़ को कम समय में पूरा करने वाले प्रतिभागी को प्राथमिकता दी जाएगी।",
+];
+
+function WinnerSelectionCard() {
+  return (
+    <section className="relative z-10 mx-[14px] mt-[8px] shrink-0 overflow-hidden rounded-[16px] border border-[#F3D7B4] bg-[linear-gradient(180deg,#FFF6EA_0%,#FDECD6_100%)] px-[12px] pt-[10px] pb-[10px] shadow-[0_6px_14px_rgba(175,95,35,0.10)]">
+      <ConfettiBurst className="pointer-events-none absolute top-[8px] right-[10px] h-[22px] w-[22px] opacity-80" />
+      <ConfettiBurst className="pointer-events-none absolute top-[28px] right-[28px] h-[14px] w-[14px] opacity-70" />
+      <div className="flex items-center gap-[8px] pr-[28px]">
+        <RedTrophy className="h-[22px] w-[22px] shrink-0" />
+        <h2 className="text-[13.5px] leading-[17px] font-extrabold text-[#E24A1C]">विजेताओं का चयन कैसे होगा?</h2>
+      </div>
+      <ol className="mt-[8px] flex flex-col gap-[7px]">
+        {WINNER_RULES.map((rule, index) => (
+          <li key={rule} className="flex items-start gap-[8px]">
+            <span className="mt-[1px] flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded-full bg-[#F08A2E] text-[9px] font-black text-white">
+              {index + 1}
+            </span>
+            <span className="text-[11px] leading-[15px] font-medium text-[#3A312C]">{rule}</span>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
 function RedTrophy({ className }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
@@ -350,54 +342,6 @@ function Petal({ style }: { style: CSSProperties }) {
     >
       <path d="M1 6C4 1 12-.5 19 3c-4 6.5-12 8-18 3Z" fill="#F08A2E" />
       <path d="M2.5 6C7 5 12 4.2 17.5 3.4" stroke="#FBB55E" strokeWidth="0.9" fill="none" />
-    </svg>
-  );
-}
-
-function BulbIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 24 24" className={className} fill="none" aria-hidden="true">
-      <path
-        d="M12 3.2a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.4 1.1 2.3V17h5v-.7c0-.9.4-1.7 1.1-2.3A6 6 0 0 0 12 3.2Z"
-        stroke="#E04E21"
-        strokeWidth="1.9"
-        strokeLinejoin="round"
-      />
-      <path d="M9.8 19.6h4.4M10.6 22h2.8" stroke="#E04E21" strokeWidth="1.9" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function SmileIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
-      <circle cx="12" cy="12" r="10" fill="#E04E21" />
-      <circle cx="8.7" cy="9.6" r="1.3" fill="#FFF3E8" />
-      <circle cx="15.3" cy="9.6" r="1.3" fill="#FFF3E8" />
-      <path
-        d="M7.6 13.4a4.6 4.6 0 0 0 8.8 0"
-        fill="none"
-        stroke="#FFF3E8"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function PrizeIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
-      <rect x="3" y="8" width="18" height="4.5" rx="1" fill="#E04E21" />
-      <rect x="4.5" y="12.5" width="15" height="8.5" rx="1" fill="#E04E21" />
-      <rect x="11" y="8" width="2" height="13" fill="#F8C59A" />
-      <path
-        d="M12 8c-1.5-3.6-5.6-4.2-5.6-1.6C6.4 8 9.4 8 12 8Zm0 0c1.5-3.6 5.6-4.2 5.6-1.6C17.6 8 14.6 8 12 8Z"
-        fill="none"
-        stroke="#E04E21"
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
     </svg>
   );
 }
