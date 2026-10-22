@@ -6,27 +6,6 @@ import { postToNative } from "@/lib/native-bridge";
 
 const AVATARS = ["/quiz/avatar-1.jpg", "/quiz/avatar-3.jpg", "/quiz/avatar-2.jpg"];
 
-const HOME_PRIZES: {
-  key: string;
-  label: string;
-  amount: string;
-  note?: string;
-  src: string;
-  pill: string;
-}[] = [
-  { key: "first", label: "1st Prize", amount: "₹5,000", src: "/quiz/trophy-gold-simple.png", pill: "bg-[#FBE2A2] text-[#8A2A10]" },
-  { key: "second", label: "2nd Prize", amount: "₹3,000", src: "/quiz/trophy-silver-simple.png", pill: "bg-[#E3E6EE] text-[#1F2A48]" },
-  { key: "third", label: "3rd Prize", amount: "₹2,000", src: "/quiz/trophy-bronze-simple.png", pill: "bg-[#F8D3B8] text-[#8A2A10]" },
-  {
-    key: "consolation",
-    label: "5 Consolation Prizes",
-    amount: "₹500",
-    note: "Each",
-    src: "/quiz/prize-gift-simple.png",
-    pill: "bg-[#FBDDD6] text-[#8A2A10]",
-  },
-];
-
 const FEATURES = [
   {
     key: "questions",
@@ -193,37 +172,8 @@ export function HomeScreen() {
         <LotusDivider className="mx-auto mt-[10px] h-[16px] w-[140px]" />
       </header>
 
-      {/* Prize breakdown, in place of the old "Win up to ₹12,500" card */}
-      <section className="relative z-10 mx-[30px] mt-[16px] shrink-0 rounded-[20px] border border-[#F4DCBC] bg-[linear-gradient(180deg,rgba(255,242,226,0.96)_0%,rgba(253,232,208,0.96)_100%)] px-[6px] pt-[9px] pb-[9px] shadow-[0_10px_22px_rgba(175,95,35,0.14)]">
-        <div className="flex items-center justify-center gap-[6px] pb-[6px]">
-          <OrnamentLine className="h-[8px] w-[36px]" />
-          <h2 className="text-[14px] leading-[18px] font-extrabold tracking-[-0.01em] text-[#1B2748]">
-            Exciting Prizes to Win
-          </h2>
-          <OrnamentLine className="h-[8px] w-[36px] -scale-x-100" />
-        </div>
-        <div className="grid grid-cols-4 divide-x divide-[rgba(205,160,110,0.32)]">
-          {HOME_PRIZES.map((prize) => (
-            <div key={prize.key} className="flex flex-col items-center px-[3px] text-center">
-              <img src={prize.src} alt="" draggable={false} className="h-[42px] w-[42px] object-contain" />
-              <p className="mt-[2px] flex min-h-[20px] items-center text-[8.5px] leading-[10px] font-bold text-[#3A2A1E]">
-                {prize.label}
-              </p>
-              <p className={`mt-[2px] w-full max-w-[64px] rounded-[7px] py-[3px] text-[12px] leading-[14px] font-black tracking-[-0.02em] ${prize.pill}`}>
-                {prize.amount}
-              </p>
-              {prize.note ? (
-                <p className="mt-[1px] text-[8px] leading-[10px] font-semibold text-[#6B5A4E]">{prize.note}</p>
-              ) : (
-                <span className="h-[11px]" />
-              )}
-            </div>
-          ))}
-        </div>
-      </section>
-
       {/* Full potato scene, uncropped at the top. The lower part may sit behind the feature cards. */}
-      <div className="relative z-0 -mt-[28px] -mb-[52px] w-full shrink-0">
+      <div className="relative z-0 mt-[20px] w-full shrink-0">
         <img
           src="/quiz/potato-sack-scene.jpg"
           alt=""
@@ -241,7 +191,7 @@ export function HomeScreen() {
       </div>
 
       {/* Bottom stack */}
-      <footer className="relative z-10 -mt-[42px] flex flex-1 flex-col px-[30px] pt-[8px] pb-[16px]">
+      <footer className="relative z-10 mt-[8px] flex flex-1 flex-col px-[30px] pt-[8px] pb-[16px]">
         <div className="grid grid-cols-3 gap-[7px]">
           {FEATURES.map((feature) => (
             <article
@@ -394,16 +344,6 @@ function LotusDivider({ className }: IconProps) {
       <path d="M62 14c-3.2-2.4-4.6-5.4-4.6-8.6C58.6 3.8 60.2 2 62 1c1.8 1 3.4 2.8 4.6 4.4 0 3.2-1.4 6.2-4.6 8.6Z" stroke="#E3A94F" strokeWidth="1.2" strokeLinejoin="round" />
       <path d="M62 14c-4.6-.6-8.2-3.2-9.6-7 2.6-.6 5.2 0 7.4 1.6M62 14c4.6-.6 8.2-3.2 9.6-7-2.6-.6-5.2 0-7.4 1.6" stroke="#E3A94F" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M62 14c-5.8 0-9.6-1.2-12.2-3.6 1.4-.2 3-.2 4.6 0M62 14c5.8 0 9.6-1.2 12.2-3.6-1.4-.2-3-.2-4.6 0" stroke="#E3A94F" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function OrnamentLine({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 46 8" className={className} fill="none" aria-hidden="true">
-      <path d="M0 4h36" stroke="#D9A24A" strokeWidth="1" strokeLinecap="round" />
-      <path d="M40 1.2 42.8 4 40 6.8 37.2 4Z" fill="#E2AE52" />
-      <circle cx="45" cy="4" r="1" fill="#E2AE52" />
     </svg>
   );
 }
