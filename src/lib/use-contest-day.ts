@@ -19,7 +19,7 @@ export type ContestState = {
   playedToday: boolean;
 };
 
-function playedOnServer(day: ContestDayNumber, contest: QuizContest, player: QuizPlayerStatus | undefined) {
+function playedOnServer(day: ContestDayNumber, contest: QuizContest, player: QuizPlayerStatus | null | undefined) {
   if (day < 1 || !player) return false;
   if (player.attemptedDays?.includes(day)) return true;
   return player.hasAttemptedToday && contest.playableDay === day;
