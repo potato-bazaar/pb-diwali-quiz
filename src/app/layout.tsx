@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Lato, Nunito } from "next/font/google";
+import { LanguageProvider } from "@/components/language-provider";
 import { MobileScreen } from "@/components/mobile-screen";
 import "./globals.css";
 
@@ -40,7 +41,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${lato.variable} ${nunito.variable} h-full antialiased`}
     >
       <body className="min-h-full font-sans">
-        <MobileScreen>{children}</MobileScreen>
+        <LanguageProvider>
+          <MobileScreen>{children}</MobileScreen>
+        </LanguageProvider>
       </body>
     </html>
   );

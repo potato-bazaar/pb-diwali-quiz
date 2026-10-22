@@ -8,10 +8,25 @@ export type QuizSession = {
   token: string;
   userId: string;
   userName: string;
+  /** App language from the quiz URL, the injected session, or the token. */
+  language: string;
 };
 
-const EMPTY: QuizSession = { token: "", userId: "", userName: "" };
+const EMPTY: QuizSession = { token: "", userId: "", userName: "", language: "" };
 const SESSION_KEY = "pb-diwali-quiz:session";
+
+function injectedLanguage(): string {
+  try {
+    const injected = (window as Window & { __PB_ZONE_SESSION__?: { language?: string } }).__PB_ZONE_SESSION__;
+    if (injected?.language) return injected.language.trim();
+    const raw = window.sessionStorage.getItem("pbZoneSession");
+    if (!raw) return "";
+    const parsed = JSON.parse(raw) as { language?: string };
+    return parsed.language?.trim() ?? "";
+  } catch {
+    return "";
+  }
+}
 
 function readInjected(): QuizSession {
   try {
@@ -21,6 +36,7 @@ function readInjected(): QuizSession {
       token,
       userId: window.sessionStorage.getItem("pbZoneUserId")?.trim() ?? "",
       userName: window.sessionStorage.getItem("pbZoneUserName")?.trim() ?? "",
+      language: injectedLanguage(),
     };
   } catch {
     return EMPTY;
@@ -50,10 +66,13 @@ export function getSession(): QuizSession {
   const params = new URLSearchParams(window.location.search);
   const token = params.get("token")?.trim();
   if (token) {
+    const previous = readStored();
+    const fromUrl = (params.get("language") ?? params.get("lang") ?? "").trim();
     const session: QuizSession = {
       token,
       userId: params.get("userId")?.trim() ?? "",
       userName: (params.get("userName") ?? params.get("name"))?.trim() ?? "",
+      language: fromUrl || injectedLanguage() || previous.language,
     };
     remember(session);
     return session;

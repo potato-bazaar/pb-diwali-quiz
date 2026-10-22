@@ -5,41 +5,13 @@ import { QuizApiError, fetchInterestStatus, registerInterest } from "@/lib/diwal
 import { postToNative } from "@/lib/native-bridge";
 
 const AVATARS = ["/quiz/avatar-1.jpg", "/quiz/avatar-3.jpg", "/quiz/avatar-2.jpg"];
+const BASE_INTEREST_COUNT = 1000;
 
-const FEATURES = [
-  {
-    key: "questions",
-    icon: <QuestionIcon />,
-    title: (
-      <>
-        Simple
-        <br />
-        Questions
-      </>
-    ),
-  },
-  {
-    key: "prizes",
-    icon: <GiftIcon />,
-    title: (
-      <>
-        Exciting
-        <br />
-        Cash Prizes
-      </>
-    ),
-  },
-  {
-    key: "date",
-    icon: <BoltIcon />,
-    title: (
-      <>
-        Starts from
-        <br />
-        <span className="font-bold text-[#D9471D]">1st Nov 2024</span>
-      </>
-    ),
-  },
+const BENEFITS = [
+  { key: "questions", label: "Fun\nquestions", icon: <BulbIcon />, ring: "bg-[#FFF4D6]" },
+  { key: "info", label: "New\nknowledge", icon: <BookIcon />, ring: "bg-[#FDE4DC]" },
+  { key: "prizes", label: "Exciting\nprizes", icon: <GoldTrophyIcon />, ring: "bg-[#E7F6EC]" },
+  { key: "rank", label: "See your rank\non the leaderboard", icon: <RankIcon />, ring: "bg-[#EDE4FB]" },
 ];
 
 /** Hanging lanterns over the header art. Percentages are of the 720x432 background box. */
@@ -49,12 +21,8 @@ const LANTERNS = [
   { key: "right", left: "90.1%", top: "10.7%", width: "8.3%", duration: "5.2s", delay: "-3.6s" },
 ];
 
-/** Shown count starts here. Each real Notify me registration adds one on top. */
-const BASE_INTEREST_COUNT = 1000;
-
 export function HomeScreen() {
   const [interested, setInterested] = useState(false);
-  /** Real Notify me registrations. The screen shows this on top of 1,000. */
   const [interestCount, setInterestCount] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -155,25 +123,27 @@ export function HomeScreen() {
       </div>
 
       {/* Header */}
-      <header className="relative z-10 shrink-0 px-6 pt-[clamp(36px,6.4dvh,56px)] text-center">
-        <DiyaIcon className="mx-auto h-[40px] w-[54px]" />
-        <p className="mt-[8px] text-[13px] leading-none font-bold tracking-[0.32em] text-[#5E5E5E]">
+      <header className="relative z-10 shrink-0 px-6 pt-[max(26px,calc(env(safe-area-inset-top)+10px))] text-center">
+        <DiyaIcon className="mx-auto h-[32px] w-[44px]" />
+        <p className="mt-[4px] text-[12px] leading-none font-bold tracking-[0.28em] text-[#6A625C]">
           POTATO BAZAAR
         </p>
-        <h1 className="mt-[10px] font-display text-[54px] leading-[0.95] font-black tracking-[-0.02em]">
+        <h1 className="mt-[2px] font-display text-[46px] leading-[0.95] font-black tracking-[-0.02em]">
           <span className="bg-gradient-to-b from-[#F6A044] via-[#E4551F] to-[#C9391B] bg-clip-text text-transparent">
             Diwali
           </span>{" "}
           <span className="text-[#1C2447]">Quiz</span>
         </h1>
-        <p className="mt-[10px] text-[16px] leading-none font-medium text-[#6A6A6A]">
-          Simple questions. Big rewards.
+        <p className="mx-auto mt-[6px] w-fit rounded-full bg-[#F6C445] px-[14px] py-[4px] text-[13px] leading-none font-extrabold text-[#1C2447]">
+          Play • Learn • Win
         </p>
-        <LotusDivider className="mx-auto mt-[10px] h-[16px] w-[140px]" />
+        <p className="mt-[6px] text-[13px] leading-none font-medium text-[#5C534C]">
+          Fun questions from the world of potato
+        </p>
+        <LotusDivider className="mx-auto mt-[6px] h-[14px] w-[120px]" />
       </header>
 
-      {/* Full potato scene, uncropped at the top. The lower part may sit behind the feature cards. */}
-      <div className="relative z-0 mt-[20px] w-full shrink-0">
+      <div className="relative z-0 mt-[8px] w-full shrink-0">
         <img
           src="/quiz/potato-sack-scene.jpg"
           alt=""
@@ -190,27 +160,67 @@ export function HomeScreen() {
         />
       </div>
 
-      {/* Bottom stack */}
-      <footer className="relative z-10 mt-[8px] flex flex-1 flex-col px-[30px] pt-[8px] pb-[16px]">
-        <div className="grid grid-cols-3 gap-[7px]">
-          {FEATURES.map((feature) => (
-            <article
-              key={feature.key}
-              className="flex min-w-0 flex-col items-center rounded-[14px] border border-[#EDD3B0] bg-gradient-to-b from-[#FBEDD8] to-[#F7E3C6] px-1 pt-[6px] pb-[6px] text-center shadow-[0_6px_16px_rgba(150,85,30,0.12)]"
+      <footer className="relative z-10 -mt-[48px] flex min-h-0 flex-1 flex-col px-[16px] pb-[10px]">
+        <section className="rounded-[22px] border border-[#F6E2CC] bg-[#FFF9F3] px-[16px] pt-[14px] pb-[12px] text-center shadow-[0_10px_22px_rgba(175,95,35,0.10)]">
+          <CalendarBadge className="mx-auto h-[28px] w-[28px]" />
+          <p className="mt-[6px] text-[14px] font-semibold text-[#3A312C]">Our</p>
+          <div className="mx-auto mt-[2px] flex w-fit items-center justify-center gap-[4px]">
+            <RayBurst className="pointer-events-none h-[48px] w-[32px] shrink-0" />
+            <h2 className="font-display text-[30px] leading-[34px] font-black tracking-[-0.02em]">
+              <span className="text-[#E4551F]">Diwali</span> <span className="text-[#1C2447]">Quiz</span>
+            </h2>
+            <RayBurst className="pointer-events-none h-[48px] w-[32px] shrink-0 scale-x-[-1]" />
+          </div>
+          <p className="text-[16px] leading-[22px] font-extrabold text-[#E4551F]">
+            Starting from 1 November!
+          </p>
+          <p className="mx-auto mt-[6px] max-w-[270px] text-[12.5px] leading-[18px] text-[#5C534C]">
+            {interested
+              ? "Thanks for showing interest"
+              : "Interesting questions from the world of potato, new knowledge, and exciting prizes."}
+          </p>
+          <div className="relative mx-auto mt-[12px] w-full max-w-[300px]">
+            <button
+              type="button"
+              onClick={showInterest}
+              disabled={saving || interested}
+              className="relative flex h-[48px] w-full items-center justify-center gap-[8px] rounded-full bg-gradient-to-r from-[#F8B15A] via-[#F08A32] to-[#E85A22] text-[18px] font-extrabold text-white shadow-[0_8px_16px_rgba(232,90,34,0.28)] active:scale-[0.98] disabled:opacity-70"
             >
-              <div className="flex h-[28px] items-center justify-center">
-                {feature.icon}
+              <BellIcon className="h-[22px] w-[22px]" />
+              <span>{saving ? "Saving…" : "Notify Me"}</span>
+            </button>
+          </div>
+          <p className="mt-[8px] text-[11.5px] leading-[16px] text-[#8A8178]">
+            So you can join first as soon as it launches.
+          </p>
+          {error && (
+            <p role="alert" className="mt-[6px] text-[12px] leading-[16px] font-semibold text-[#C2412A]">
+              {error}
+            </p>
+          )}
+        </section>
+
+        <section className="mt-[8px] rounded-[22px] border border-[#F6E2CC] bg-[#FFF9F3] px-[10px] pt-[10px] pb-[10px] text-center shadow-[0_8px_18px_rgba(175,95,35,0.06)]">
+          <h2 className="flex items-center justify-center gap-[8px] text-[18px] leading-[22px] font-extrabold text-[#24315C]">
+            <span className="text-[#F0B429]">✦</span>
+            What will you get?
+            <span className="text-[#F0B429]">✦</span>
+          </h2>
+          <div className="mt-[10px] grid grid-cols-4 gap-[4px]">
+            {BENEFITS.map((item) => (
+              <div key={item.key} className="flex flex-col items-center">
+                <span className={`flex h-[48px] w-[48px] items-center justify-center rounded-full ${item.ring}`}>
+                  {item.icon}
+                </span>
+                <p className="mt-[6px] text-center text-[11px] leading-[14px] font-semibold whitespace-pre-line text-[#3A312C]">
+                  {item.label}
+                </p>
               </div>
-              <p className="mt-[3px] text-[12px] leading-[14px] font-semibold text-[#222222]">
-                {feature.title}
-              </p>
-            </article>
-          ))}
-        </div>
+            ))}
+          </div>
+        </section>
 
-        <WinnerSelectionCard />
-
-        <div className="relative mt-[10px] flex items-center gap-[9px] rounded-[24px] bg-gradient-to-r from-[#FCF1E4] to-[#FDF5EC] py-[9px] pr-[12px] pl-[12px] shadow-[0_2px_4px_rgba(150,85,30,0.06),0_8px_20px_rgba(150,85,30,0.12)]">
+        <div className="relative mt-[8px] flex items-center gap-[9px] rounded-[24px] bg-gradient-to-r from-[#FCF1E4] to-[#FDF5EC] py-[8px] pr-[12px] pl-[12px] shadow-[0_2px_4px_rgba(150,85,30,0.06),0_8px_20px_rgba(150,85,30,0.12)]">
           <div className="flex shrink-0 -space-x-[7px]">
             {AVATARS.map((src, i) => (
               <img
@@ -224,39 +234,13 @@ export function HomeScreen() {
           </div>
           <p className="min-w-0 leading-none">
             <span className="block text-[15px] leading-[17px] font-black text-[#1E2A4A]">
-              {interestLabel}
+              {shownInterest.toLocaleString("en-IN")} people
             </span>
-            <span className="mt-[3px] block text-[11px] leading-[14px] whitespace-nowrap text-[#595959]">
+            <span className="mt-[3px] block text-[11px] leading-[14px] text-[#595959]">
               have shown interest in this quiz!
             </span>
           </p>
           <SparkleMark className="absolute top-[7px] right-[14px] h-[17px] w-[17px]" />
-        </div>
-
-        <div className="mt-[4px]">
-          {interested ? (
-            <ThanksBanner />
-          ) : (
-            <button
-              type="button"
-              onClick={showInterest}
-              disabled={saving}
-              className="relative mt-[13px] flex h-[46px] w-full items-center justify-center gap-[12px] rounded-full bg-gradient-to-r from-[#F6A346] via-[#EF7A2C] to-[#E3471A] text-[17px] font-bold text-white shadow-[0_10px_22px_rgba(232,80,25,0.35)] active:scale-[0.98] disabled:opacity-70"
-            >
-              <DiyaIcon tone="light" className="absolute top-1/2 left-[16px] h-[20px] w-[23px] -translate-y-1/2 opacity-80" />
-              <BellIcon className="h-[19px] w-[19px]" />
-              <span>{saving ? "Saving…" : "Notify me"}</span>
-              <ArrowIcon className="h-[19px] w-[19px]" />
-              <DiyaIcon tone="light" className="absolute top-1/2 right-[16px] h-[20px] w-[23px] -translate-y-1/2 opacity-80" />
-            </button>
-          )}
-
-          {error && (
-            <p role="alert" className="mt-[10px] text-center text-[12px] leading-[16px] font-semibold text-[#C2412A]">
-              {error}
-            </p>
-          )}
-
         </div>
       </footer>
     </div>
@@ -348,58 +332,6 @@ function LotusDivider({ className }: IconProps) {
   );
 }
 
-const WINNER_RULES = [
-  "1-10 नवंबर के कुल स्कोर के आधार पर विजेताओं की घोषणा की जाएगी।",
-  "रोज खेल और अपना स्कोर जितना हो सके बढ़ाए। कोई भी आज का क्विज़ मिस न करें।",
-  "विजेताओं की घोषणा और उनसे संपर्क 30 नवंबर तक किया जाएगा।",
-  "यदि कुल स्कोर समान (टाई) होता है, तो सभी क्विज़ को कम समय में पूरा करने वाले प्रतिभागी को प्राथमिकता दी जाएगी।",
-];
-
-function WinnerSelectionCard() {
-  return (
-    <section className="relative z-10 mt-[12px] shrink-0 overflow-hidden rounded-[16px] border border-[#F3D7B4] bg-[linear-gradient(180deg,#FFF6EA_0%,#FDECD6_100%)] px-[12px] pt-[10px] pb-[10px] shadow-[0_6px_14px_rgba(175,95,35,0.10)]">
-      <ConfettiBurst className="pointer-events-none absolute top-[8px] right-[10px] h-[22px] w-[22px] opacity-80" />
-      <ConfettiBurst className="pointer-events-none absolute top-[28px] right-[28px] h-[14px] w-[14px] opacity-70" />
-      <div className="flex items-center gap-[8px] pr-[28px]">
-        <RedTrophy className="h-[22px] w-[22px] shrink-0" />
-        <h2 className="text-[13.5px] leading-[17px] font-extrabold text-[#E24A1C]">विजेताओं का चयन कैसे होगा?</h2>
-      </div>
-      <ol className="mt-[8px] flex flex-col gap-[7px]">
-        {WINNER_RULES.map((rule, index) => (
-          <li key={rule} className="flex items-start gap-[8px]">
-            <span className="mt-[1px] flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded-full bg-[#F08A2E] text-[9px] font-black text-white">
-              {index + 1}
-            </span>
-            <span className="text-[11px] leading-[15px] font-medium text-[#3A312C]">{rule}</span>
-          </li>
-        ))}
-      </ol>
-    </section>
-  );
-}
-
-function RedTrophy({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
-      <path d="M6.5 4.5H3.6c0 3.6 1.6 5.6 4.2 6M17.5 4.5h2.9c0 3.6-1.6 5.6-4.2 6" fill="none" stroke="#B8261A" strokeWidth="1.6" />
-      <path d="M6.2 3h11.6v4.6a5.8 5.8 0 0 1-11.6 0Z" fill="#D2352A" />
-      <path d="M8.2 4.4v3a3.4 3.4 0 0 0 1.6 2.9" fill="none" stroke="#F07A5E" strokeWidth="1.1" strokeLinecap="round" />
-      <path d="M10.6 13.2h2.8l.5 4h-3.8Z" fill="#B8261A" />
-      <rect x="7.6" y="17.2" width="8.8" height="3.6" rx="0.8" fill="#9E1F15" />
-    </svg>
-  );
-}
-
-function ConfettiBurst({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 20 20" className={className} fill="none" aria-hidden="true">
-      <path d="M10 2.2v3.4M4 5l2.2 2.4M16 5l-2.2 2.4M2.4 11h3M14.6 11h3" stroke="#EE7A2A" strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M6.6 15.4 8 13.2M13.4 15.4 12 13.2" stroke="#D9431B" strokeWidth="1.5" strokeLinecap="round" />
-      <circle cx="10" cy="17" r="1.1" fill="#F2B33A" />
-    </svg>
-  );
-}
-
 function Star({ className }: IconProps) {
   return (
     <svg viewBox="0 0 12 12" className={className} aria-hidden="true">
@@ -478,6 +410,66 @@ function SparkleMark({ className }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" className={className} aria-hidden="true" fill="none">
       <path d="M5.2 13.5 4 4.5M9.5 14.8 15.8 8.5M12 20.8l8.5.7" stroke="#E8582A" strokeWidth="2.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function RayBurst({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 46 72" className={className} aria-hidden="true" fill="none">
+      <path d="M40 36H8" stroke="#F0B429" strokeWidth="2.2" strokeLinecap="round" />
+      <path d="M36 22 14 16" stroke="#F0B429" strokeWidth="2.2" strokeLinecap="round" />
+      <path d="M36 50 14 56" stroke="#F0B429" strokeWidth="2.2" strokeLinecap="round" />
+      <path d="M30 12 22 6" stroke="#F6C445" strokeWidth="2" strokeLinecap="round" />
+      <path d="M30 60 22 66" stroke="#F6C445" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function CalendarBadge({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 32 32" className={className} aria-hidden="true">
+      <rect x="6" y="8" width="20" height="18" rx="3" fill="#E4551F" />
+      <path d="M6 13h20" stroke="#FFF6EE" strokeWidth="1.6" />
+      <path d="M11 6v5M21 6v5" stroke="#E4551F" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function BulbIcon() {
+  return (
+    <svg viewBox="0 0 32 32" className="h-[26px] w-[26px]" aria-hidden="true">
+      <path d="M16 5a7 7 0 0 0-3.8 13c.6.5 1 1.3 1 2.1V22h5.6v-1.9c0-.8.4-1.6 1-2.1A7 7 0 0 0 16 5Z" fill="#F0B429" />
+      <path d="M13.2 24.2h5.6M14.2 26.4h3.6" stroke="#E39A12" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function BookIcon() {
+  return (
+    <svg viewBox="0 0 32 32" className="h-[26px] w-[26px]" aria-hidden="true">
+      <path d="M7 8c3-1.3 5.8-.5 9 .9 3.2-1.4 6-2.2 9-.9v15c-3-1.3-5.8-.5-9 .9-3.2-1.4-6-2.2-9-.9Z" fill="#E24A1C" />
+      <path d="M16 8.8v15" stroke="#FFF6EE" strokeWidth="1.4" />
+    </svg>
+  );
+}
+
+function GoldTrophyIcon() {
+  return (
+    <svg viewBox="0 0 32 32" className="h-[26px] w-[26px]" aria-hidden="true">
+      <path d="M10 7h12v6a6 6 0 0 1-12 0Z" fill="#F0B429" />
+      <path d="M10 9H7.2A3.2 3.2 0 0 0 10.6 14M22 9h2.8A3.2 3.2 0 0 1 21.4 14" fill="none" stroke="#E39A12" strokeWidth="1.5" />
+      <path d="M14.4 19.2h3.2l.4 2.6h-4Z" fill="#C98412" />
+      <rect x="11" y="22" width="10" height="2.8" rx="1" fill="#E39A12" />
+    </svg>
+  );
+}
+
+function RankIcon() {
+  return (
+    <svg viewBox="0 0 32 32" className="h-[26px] w-[26px]" aria-hidden="true">
+      <path d="M7 22V15h4v7H7Zm7 0V9h4v13h-4Zm7 0v-5h4v5h-4Z" fill="#7B5CFA" />
+      <path d="M22 8.5l1 2.2 2.4.2-1.8 1.6.6 2.3-2.2-1.3-2.2 1.3.6-2.3-1.8-1.6 2.4-.2Z" fill="#F0B429" />
     </svg>
   );
 }
