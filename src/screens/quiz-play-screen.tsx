@@ -28,6 +28,8 @@ import { postToNative } from "@/lib/native-bridge";
 import { unlockAudio } from "@/lib/sound";
 import { useContestDay, type ContestState } from "@/lib/use-contest-day";
 import { Fireworks } from "@/components/fireworks";
+import { useI18n } from "@/components/language-provider";
+import { localizeQuestion } from "@/data/localize-question";
 
 const PETALS: { key: string; style: CSSProperties }[] = [
   { key: "card-left", style: { top: "35%", left: "1.5%", transform: "rotate(-30deg) scale(0.8)" } },
@@ -144,7 +146,8 @@ function DayQuiz({ quiz, alreadyPlayed }: { quiz: QuizDay; alreadyPlayed: boolea
     [],
   );
 
-  const question = quiz.questions[index];
+  const { t, lang } = useI18n();
+  const question = localizeQuestion(quiz.questions[index], lang);
   const picked = answers[index];
   const isLast = index === total - 1;
 
@@ -289,7 +292,7 @@ function DayQuiz({ quiz, alreadyPlayed }: { quiz: QuizDay; alreadyPlayed: boolea
     <>
       <PlayNav
         onClose={exit}
-        subtitle={`Day ${quiz.day}`}
+        subtitle={t("dayLabel", { day: quiz.day })}
         counter={`${index + 1}/${total}`}
       />
 
@@ -403,14 +406,15 @@ const longDate = (date: string) =>
 
 function ContestClosed({ state }: { state: ContestState }) {
   const exit = useExit();
+  const { t } = useI18n();
   const start = longDate(state.contest?.startDate ?? CONTEST_START);
   const end = longDate(state.contest?.endDate ?? CONTEST_END);
   const [title, message] =
     state.day === ENDED
-      ? ["Quiz khatam ho gaya", `Diwali Quiz ${end} ko khatam ho gaya. Hissa lene ke liye dhanyavaad!`]
+      ? [t("endedTitle"), t("endedBody", { end })]
       : state.day === NOT_LIVE
-        ? ["Quiz abhi live nahi hai", "Diwali Quiz jaldi live hoga. Har din 10 naye sawaal! Thodi der baad dobara dekhiye."]
-        : ["Quiz jald shuru hoga", `Diwali Quiz ${start} se ${end} tak roz chalega. Har din 10 naye sawaal!`];
+        ? [t("notLiveTitle"), t("notLiveBody")]
+        : [t("soonTitle"), t("soonBody", { start, end })];
   return (
     <>
       <PlayNav onClose={exit} subtitle={`${start} – ${end}`} />
@@ -428,7 +432,7 @@ function ContestClosed({ state }: { state: ContestState }) {
           onClick={exit}
           className="mt-[24px] flex h-[52px] w-full max-w-[240px] items-center justify-center rounded-full bg-gradient-to-r from-[#F2742C] via-[#EC5F24] to-[#E2461C] text-[17px] font-bold text-white shadow-[0_10px_22px_rgba(226,80,28,0.36)] active:scale-[0.98]"
         >
-          Home par jaaiye
+          {t("goHome")}
         </button>
       </main>
       <PlayFooter />
@@ -649,6 +653,7 @@ function ResultCard({
   onExit: () => void;
 }) {
   const router = useRouter();
+  const { t } = useI18n();
 
   return (
     <div className="question-in absolute inset-0 z-20 overflow-hidden text-center">
@@ -687,27 +692,27 @@ function ResultCard({
           />
         ))}
         <p className="relative font-display text-[26px] leading-[1.1] font-extrabold text-[#24963F]">
-          Total Score
+          {t("totalScore")}
         </p>
         <p className="relative mt-[8px] font-display text-[18px] leading-[1.2] font-extrabold text-[#1A2142]">
-          You Scored
+          {t("youScored")}
         </p>
         <p className="relative mt-[2px] font-display text-[52px] leading-[1.02] font-black tracking-[-0.03em] whitespace-nowrap text-[#E24A1C]">
-          {attempt.points} Points
+          {t("points", { n: attempt.points })}
         </p>
         <p className="relative mt-[6px] text-[14px] font-semibold text-[#8A6244]">
-          {attempt.correct}/{quiz.questions.length} सही जवाब
+          {t("correctLine", { correct: attempt.correct, total: quiz.questions.length })}
         </p>
 
         <div className="relative mt-[16px] grid grid-cols-2 gap-[10px]">
           <div className="rounded-[16px] bg-[#FFF1E6] px-[8px] py-[12px] text-center">
             <ScoreTrophy className="mx-auto h-[32px] w-[32px]" />
-            <p className="mt-[6px] text-[12.5px] leading-[16px] font-bold text-[#D2652E]">आज का स्कोर</p>
+            <p className="mt-[6px] text-[12.5px] leading-[16px] font-bold text-[#D2652E]">{t("todayScore")}</p>
             <p className="mt-[2px] font-display text-[30px] leading-none font-black text-[#E24A1C]">{attempt.points}</p>
           </div>
           <div className="rounded-[16px] bg-[#F1F7EE] px-[8px] py-[12px] text-center">
             <ScoreStar className="mx-auto h-[32px] w-[32px]" />
-            <p className="mt-[6px] text-[12.5px] leading-[16px] font-bold text-[#2E8A45]">अब तक का कुल स्कोर</p>
+            <p className="mt-[6px] text-[12.5px] leading-[16px] font-bold text-[#2E8A45]">{t("overallScore")}</p>
             <p className="mt-[2px] font-display text-[30px] leading-none font-black text-[#24963F]">{overallPoints(sync, attempt.points)}</p>
           </div>
         </div>
@@ -726,10 +731,10 @@ function ResultCard({
         <CalendarDiya className="pointer-events-none absolute top-1/2 left-[2px] h-[58px] w-[58px] -translate-y-1/2" />
         <FireworkBurst className="pointer-events-none absolute top-[2px] right-[2px] h-[48px] w-[48px]" />
         <div className="pl-[50px] pr-[40px]">
-          <p className="text-[14.5px] leading-[19px] font-extrabold text-[#E1262A]">आज का क्विज़ पूरा हुआ!</p>
-          <p className="text-[14.5px] leading-[19px] font-extrabold text-[#1A2142]">कल फिर आइए, नए सवालों के साथ!</p>
+          <p className="text-[14.5px] leading-[19px] font-extrabold text-[#E1262A]">{t("doneTitle")}</p>
+          <p className="text-[14.5px] leading-[19px] font-extrabold text-[#1A2142]">{t("comeTomorrow")}</p>
           <p className="mt-[4px] text-[12px] leading-[16px] font-semibold text-[#7A7168]">
-            10 दिनों तक खेलें और अपना कुल स्कोर बढ़ाएँ।
+            {t("playTenDays")}
           </p>
         </div>
       </section>
@@ -753,7 +758,7 @@ function ResultCard({
               className="h-[60px] w-[60px] object-contain select-none [filter:brightness(1.5)_saturate(1.2)_drop-shadow(0_0_4px_rgba(255,236,170,0.95))]"
             />
           </span>
-          <span>Leaderboard</span>
+          <span>{t("leaderboard")}</span>
           <ArrowIcon className="h-[22px] w-[22px]" />
           <img
             src="/quiz/diya-round.png"
@@ -767,7 +772,7 @@ function ResultCard({
           onClick={onExit}
           className="flex h-[clamp(50px,6.6dvh,56px)] items-center justify-center rounded-full border-[1.5px] border-[#CFC3B6] bg-[rgba(255,252,246,0.75)] text-[17px] font-semibold text-[#4A4652] active:scale-[0.98] active:bg-[#F8EBDD]"
         >
-          Back to Home
+          {t("backHome")}
         </button>
       </div>
       </div>
@@ -936,6 +941,7 @@ function FireworkBurst({ className }: IconProps) {
 }
 
 function SyncNote({ sync, onRetry }: { sync: SyncState | null; onRetry: () => void }) {
+  const { t } = useI18n();
   if (!sync) return null;
   if (sync.status === "error") {
     return (
@@ -946,7 +952,7 @@ function SyncNote({ sync, onRetry }: { sync: SyncState | null; onRetry: () => vo
           onClick={onRetry}
           className="mt-[4px] rounded-full border border-[#E8B9A8] px-[12px] py-[3px] text-[12px] font-bold text-[#D9431B] active:bg-[#FBE6DD]"
         >
-          Try again
+          {t("tryAgain")}
         </button>
       </div>
     );
@@ -954,10 +960,10 @@ function SyncNote({ sync, onRetry }: { sync: SyncState | null; onRetry: () => vo
   return (
     <p role="status" className="relative mt-[6px] text-[12px] leading-[16px] font-semibold text-[#8A7A6C]">
       {sync.status === "saving"
-        ? "Saving your points…"
+        ? t("saving")
         : sync.totalPoints !== null
-          ? `Overall total: ${sync.totalPoints} points`
-          : "Points saved to the leaderboard"}
+          ? t("overallSaved", { n: sync.totalPoints })
+          : t("pointsSaved")}
     </p>
   );
 }
@@ -1168,7 +1174,9 @@ const VERDICTS = {
 };
 
 function AnswerVerdict({ verdict }: { verdict: keyof typeof VERDICTS }) {
-  const { label, color, pill } = VERDICTS[verdict];
+  const { t } = useI18n();
+  const { color, pill } = VERDICTS[verdict];
+  const label = verdict === "correct" ? t("right") : verdict === "wrong" ? t("wrong") : t("timedOut");
   return (
     <p
       className={`verdict-in flex h-[60px] min-w-0 flex-1 items-center justify-center gap-[12px] rounded-full border-[1.5px] text-[20px] font-bold whitespace-nowrap text-white ${pill}`}

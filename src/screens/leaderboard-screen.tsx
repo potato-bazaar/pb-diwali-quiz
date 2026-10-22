@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type CSSProperties, type UIEvent } from "react";
 import { QUESTION_BANK } from "@/data/question-bank";
 import { QuizApiError, fetchLeaderboard, type LeaderboardEntry, type LeaderboardPage } from "@/lib/diwali-quiz-api";
+import { useI18n } from "@/components/language-provider";
 import { postToNative } from "@/lib/native-bridge";
 
 const TOTAL_DAYS = QUESTION_BANK.length;
@@ -99,6 +100,7 @@ const CONFETTI: { key: string; style: CSSProperties }[] = [
 ];
 
 export function LeaderboardScreen() {
+  const { t } = useI18n();
   const router = useRouter();
   const { board, loadingMore, retry, loadMore } = useLeaderboard();
 
@@ -141,9 +143,9 @@ export function LeaderboardScreen() {
           </svg>
         </button>
         <div className="min-w-0 text-center">
-          <h1 className="font-display text-[20px] leading-[24px] font-extrabold tracking-[-0.01em]">Diwali Quiz</h1>
+          <h1 className="font-display text-[20px] leading-[24px] font-extrabold tracking-[-0.01em]">{t("title").replace("!", "")}</h1>
           <p className="mt-[2px] font-display text-[15px] leading-[18px] font-extrabold tracking-[0.01em] text-[#E2551F]">
-            Leaderboard
+            {t("leaderboard")}
           </p>
         </div>
         <a
@@ -175,9 +177,9 @@ export function LeaderboardScreen() {
               ))}
             </ol>
           ) : board.status === "error" ? (
-            <BoardMessage title="Leaderboard load nahi hua" detail={board.message} onRetry={retry} />
+            <BoardMessage title={t("loadFailed")} detail={board.message} onRetry={retry} />
           ) : board.rows.length === 0 ? (
-            <BoardMessage title="No record" detail="Quiz khelo aur leaderboard pe sabse pehle aao!" />
+            <BoardMessage title={t("emptyTitle")} detail={t("emptyDetail")} />
           ) : (
             <>
               <ol
@@ -191,7 +193,7 @@ export function LeaderboardScreen() {
               </ol>
               {board.me && !board.rows.some((r) => r.userId === board.me?.userId) && (
                 <ul aria-label="Your rank" className="shrink-0 border-t border-[#F2D9BC] shadow-[0_-6px_14px_rgba(170,110,60,0.10)]">
-                  <LeaderboardRow entry={{ ...board.me, name: "You" }} isMe />
+                  <LeaderboardRow entry={{ ...board.me, name: t("you") }} isMe />
                 </ul>
               )}
             </>
@@ -298,12 +300,13 @@ function PrizeMedal({
 const GRID = "grid grid-cols-[40px_minmax(0,1fr)_54px_46px] items-center";
 
 function ColumnHeader() {
+  const { t } = useI18n();
   return (
     <div className={`${GRID} border-b border-[#EFE3D4] bg-[#FFFDFA] px-[10px] py-[10px] text-[11px] font-semibold text-[#9A8E82]`}>
-      <span className="text-center">Rank</span>
-      <span className="border-l border-[#EFE3D4] pl-[12px]">Name</span>
-      <span className="border-l border-[#EFE3D4] text-center">Time</span>
-      <span className="border-l border-[#EFE3D4] text-center">Points</span>
+      <span className="text-center">{t("rank")}</span>
+      <span className="border-l border-[#EFE3D4] pl-[12px]">{t("name")}</span>
+      <span className="border-l border-[#EFE3D4] text-center">{t("time")}</span>
+      <span className="border-l border-[#EFE3D4] text-center">{t("pointsCol")}</span>
     </div>
   );
 }
@@ -419,6 +422,7 @@ function SkeletonRow() {
 }
 
 function BoardMessage({ title, detail, onRetry }: { title: string; detail: string; onRetry?: () => void }) {
+  const { t } = useI18n();
   return (
     <div role={onRetry ? "alert" : "status"} className="flex min-h-0 flex-1 flex-col items-center justify-center px-[24px] text-center">
       <img src="/quiz/potato-avatar.png" alt="" draggable={false} className="h-[64px] w-[64px] opacity-90" />
@@ -430,7 +434,7 @@ function BoardMessage({ title, detail, onRetry }: { title: string; detail: strin
           onClick={onRetry}
           className="mt-[12px] rounded-full bg-gradient-to-r from-[#F2742C] to-[#E2461C] px-[18px] py-[7px] text-[13px] font-bold text-white shadow-[0_6px_14px_rgba(226,80,28,0.30)] active:scale-95"
         >
-          Try again
+          {t("tryAgain")}
         </button>
       )}
     </div>
@@ -439,13 +443,9 @@ function BoardMessage({ title, detail, onRetry }: { title: string; detail: strin
 
 /* ---------- Footer ---------- */
 
-const RULES = [
-  "Every correct answer = 10 points (max 100 points per day).",
-  "Points from every day you play add up to your overall total (max 1,000).",
-  "If points are tied, the player who finished in less time ranks higher.",
-];
-
 function HowRankingWorks() {
+  const { t } = useI18n();
+  const rules = [t("rankRule1"), t("rankRule2"), t("rankRule3")];
   return (
     <section
       id="how-ranking-works"
@@ -455,10 +455,10 @@ function HowRankingWorks() {
         <span className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full bg-[#EE7A2C] text-[11px] font-black text-white">
           i
         </span>
-        How ranking works?
+        {t("howRanking")}
       </p>
       <ol className="mt-[9px] flex flex-col gap-[7px]">
-        {RULES.map((rule, i) => (
+        {rules.map((rule, i) => (
           <li key={rule} className="flex items-start gap-[8px]">
             <span className="mt-[1px] flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded-full bg-[#FBE0C8] text-[9.5px] font-black text-[#D9701F]">
               {i + 1}

@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { QuizHomeScreen } from "@/screens/quiz-home-screen";
 import { postToNative } from "@/lib/native-bridge";
+import { useI18n } from "@/components/language-provider";
 import { useContestDay } from "@/lib/use-contest-day";
 
 const AVATARS = ["/quiz/avatar-1.jpg", "/quiz/avatar-3.jpg", "/quiz/avatar-2.jpg"];
@@ -52,6 +53,7 @@ const LANTERNS = [
 
 export function HomeScreen() {
   const contest = useContestDay();
+  const { t } = useI18n();
   const [interested, setInterested] = useState(false);
   // Once the admin has started the quiz, the "1st November" screen is gone.
   if (contest?.contest?.isLive && contest.day >= 1) {
@@ -101,16 +103,16 @@ export function HomeScreen() {
       <header className="relative z-10 shrink-0 px-6 pt-[max(clamp(36px,6.4dvh,56px),calc(env(safe-area-inset-top)+12px))] text-center">
         <DiyaIcon className="mx-auto h-[40px] w-[54px]" />
         <p className="mt-[8px] text-[13px] leading-none font-bold tracking-[0.32em] text-[#5E5E5E]">
-          POTATO BAZAAR
+          {t("potatoBazaar")}
         </p>
         <h1 className="mt-[10px] font-display text-[54px] leading-[0.95] font-black tracking-[-0.02em]">
           <span className="bg-gradient-to-b from-[#F6A044] via-[#E4551F] to-[#C9391B] bg-clip-text text-transparent">
-            Diwali
+            {t("diwali")}
           </span>{" "}
-          <span className="text-[#1C2447]">Quiz</span>
+          <span className="text-[#1C2447]">{t("quiz")}</span>
         </h1>
         <p className="mt-[10px] text-[16px] leading-none font-medium text-[#6A6A6A]">
-          Simple questions. Big rewards.
+          {t("simple")}
         </p>
         <LotusDivider className="mx-auto mt-[10px] h-[16px] w-[140px]" />
       </header>
@@ -212,7 +214,7 @@ export function HomeScreen() {
             >
               <DiyaIcon tone="light" className="absolute top-1/2 left-[16px] h-[20px] w-[23px] -translate-y-1/2 opacity-80" />
               <BellIcon className="h-[19px] w-[19px]" />
-              <span>I&apos;m Interested</span>
+              <span>{t("interested")}</span>
               <ArrowIcon className="h-[19px] w-[19px]" />
               <DiyaIcon tone="light" className="absolute top-1/2 right-[16px] h-[20px] w-[23px] -translate-y-1/2 opacity-80" />
             </button>
@@ -222,7 +224,7 @@ export function HomeScreen() {
             <p className="mt-[22px] flex items-center justify-center gap-[5px] text-[11.5px] leading-none text-[#6B6B6B]">
               <InfoIcon className="h-[12px] w-[12px] shrink-0" />
               <span>
-                Quiz will start from{" "}
+                {t("startsOn")}{" "}
                 <span className="font-bold text-[#DE4D1C]">1st November 2026.</span>
               </span>
             </p>
@@ -234,6 +236,7 @@ export function HomeScreen() {
 }
 
 function ThanksBanner() {
+  const { t } = useI18n();
   return (
     <div
       role="status"
@@ -253,12 +256,12 @@ function ThanksBanner() {
 
       <div className="relative min-w-0 flex-1 pr-[8px] text-center">
         <p className="font-display text-[15px] leading-[19px] font-black whitespace-nowrap text-[#1C2447]">
-          <span className="text-[#E2551F]">Thanks</span> for showing interest!
+          <span className="text-[#E2551F]">{t("thanks")}</span> {t("thanksRest")}
         </p>
         <p className="mt-[4px] text-[12px] leading-[16px] font-medium text-[#4A5878]">
-          We&apos;ll notify you when the quiz starts
+          {t("notify")}
           <br />
-          on <span className="font-bold text-[#DE3E1C]">1st November 2026.</span>
+          <span className="font-bold text-[#DE3E1C]">1st November 2026.</span>
         </p>
       </div>
     </div>

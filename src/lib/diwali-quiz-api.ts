@@ -70,6 +70,24 @@ export type QuizPlayerStatus = {
   canPlayToday: boolean;
 };
 
+/** Language saved on the user's profile. The quiz follows this when the URL did not send one. */
+export async function fetchProfileLanguage(): Promise<string | null> {
+  const { token } = getSession();
+  if (!token) return null;
+  try {
+    const response = await fetch(`${API_BASE_URL}user-profile`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) return null;
+    const body = await response.json();
+    const user = body?.userData ?? body?.data ?? body;
+    const code = user?.language ?? user?.preferredLanguage ?? user?.appLanguage;
+    return typeof code === "string" ? code : null;
+  } catch {
+    return null;
+  }
+}
+
 export function fetchQuizStatus() {
   return request<{ contest: QuizContest; player: QuizPlayerStatus }>("/status");
 }

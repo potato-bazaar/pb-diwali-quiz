@@ -4,6 +4,7 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { QUESTION_BANK } from "@/data/question-bank";
 import { loadAttempt, resolveContestDay } from "@/lib/contest";
+import { useI18n } from "@/components/language-provider";
 import { postToNative } from "@/lib/native-bridge";
 import { useContestDay } from "@/lib/use-contest-day";
 
@@ -21,19 +22,19 @@ const PETALS: { key: string; style: CSSProperties }[] = [
 
 const HOME_PRIZES: {
   key: string;
-  label: string;
+  labelKey: "prize1" | "prize2" | "prize3" | "consolation";
   amount: string;
   note?: string;
   src: string;
   /** Amount pill colours, matching the trophy metal. */
   pill: string;
 }[] = [
-  { key: "first", label: "1st Prize", amount: "₹5,000", src: "/quiz/trophy-gold-simple.png", pill: "bg-[#FBE2A2] text-[#8A2A10]" },
-  { key: "second", label: "2nd Prize", amount: "₹3,000", src: "/quiz/trophy-silver-simple.png", pill: "bg-[#E3E6EE] text-[#1F2A48]" },
-  { key: "third", label: "3rd Prize", amount: "₹2,000", src: "/quiz/trophy-bronze-simple.png", pill: "bg-[#F8D3B8] text-[#8A2A10]" },
+  { key: "first", labelKey: "prize1" as const, amount: "₹5,000", src: "/quiz/trophy-gold-simple.png", pill: "bg-[#FBE2A2] text-[#8A2A10]" },
+  { key: "second", labelKey: "prize2" as const, amount: "₹3,000", src: "/quiz/trophy-silver-simple.png", pill: "bg-[#E3E6EE] text-[#1F2A48]" },
+  { key: "third", labelKey: "prize3" as const, amount: "₹2,000", src: "/quiz/trophy-bronze-simple.png", pill: "bg-[#F8D3B8] text-[#8A2A10]" },
   {
     key: "consolation",
-    label: "5 Consolation Prizes",
+    labelKey: "consolation" as const,
     amount: "₹500",
     note: "Each",
     src: "/quiz/prize-gift-simple.png",
@@ -44,6 +45,7 @@ const HOME_PRIZES: {
 /** `completed`: shown after today's quiz is done, with a leaderboard link instead of Start Quiz. */
 export function QuizHomeScreen({ completed = false }: { completed?: boolean }) {
   const router = useRouter();
+  const { t } = useI18n();
   const contestState = useContestDay();
   const [clockDay, setClockDay] = useState<number | null>(null);
   useEffect(() => {
@@ -111,17 +113,17 @@ export function QuizHomeScreen({ completed = false }: { completed?: boolean }) {
       <header className="relative z-10 shrink-0 px-[26px] pt-[clamp(10px,2.2dvh,24px)]">
         <FireworkBurst className="absolute top-[92px] right-[30px] h-[38px] w-[38px]" />
 
-        <p className="text-[18px] leading-[22px] font-medium text-[#5C5C5C]">Aaiye, kheliye</p>
+        <p className="text-[18px] leading-[22px] font-medium text-[#5C5C5C]">{t("tagline")}</p>
         <h1 className="mt-[6px] font-display leading-none">
           <span className="block text-[28px] leading-[32px] font-extrabold tracking-[-0.01em] text-[#1C2447]">
-            Potato Bazaar ka
+            {t("brandLine")}
           </span>
           <span className="mt-[2px] block bg-gradient-to-b from-[#EE5A2A] to-[#C9301A] bg-clip-text pb-[4px] text-[48px] leading-[52px] font-black tracking-[-0.02em] text-transparent">
-            Diwali Quiz!
+            {t("title")}
           </span>
         </h1>
         <p className="-mt-[2px] max-w-[250px] text-[15.5px] leading-[21px] text-[#555555]">
-          Aloo ki duniya se jude mazedaar sawaal, jeetiye shandaar inaam!
+          {t("subtitle")}
         </p>
       </header>
 
@@ -148,7 +150,7 @@ export function QuizHomeScreen({ completed = false }: { completed?: boolean }) {
         <div className="flex items-center justify-center gap-[6px] pb-[6px]">
           <OrnamentLine className="h-[8px] w-[46px]" />
           <h2 className="text-[15px] leading-[18px] font-extrabold tracking-[-0.01em] text-[#1B2748]">
-            Exciting Prizes to Win
+            {t("prizesTitle")}
           </h2>
           <OrnamentLine className="h-[8px] w-[46px] -scale-x-100" />
         </div>
@@ -157,7 +159,7 @@ export function QuizHomeScreen({ completed = false }: { completed?: boolean }) {
             <div key={prize.key} className="flex flex-col items-center px-[3px] text-center">
               <img src={prize.src} alt="" draggable={false} className="h-[46px] w-[46px] object-contain" />
               <p className="mt-[2px] flex min-h-[22px] items-center text-[9px] leading-[10px] font-bold text-[#3A2A1E]">
-                {prize.label}
+                {t(prize.labelKey)}
               </p>
               <p
                 className={`mt-[2px] w-full max-w-[66px] rounded-[7px] py-[3px] text-[13px] leading-[15px] font-black tracking-[-0.02em] ${prize.pill}`}
@@ -165,7 +167,7 @@ export function QuizHomeScreen({ completed = false }: { completed?: boolean }) {
                 {prize.amount}
               </p>
               {prize.note ? (
-                <p className="mt-[1px] text-[8px] leading-[10px] font-semibold text-[#6B5A4E]">{prize.note}</p>
+                <p className="mt-[1px] text-[8px] leading-[10px] font-semibold text-[#6B5A4E]">{t("each")}</p>
               ) : (
                 <span className="h-[11px]" />
               )}
@@ -201,7 +203,7 @@ export function QuizHomeScreen({ completed = false }: { completed?: boolean }) {
               className="h-[60px] w-[60px] object-contain select-none [filter:brightness(1.5)_saturate(1.2)_drop-shadow(0_0_4px_rgba(255,236,170,0.95))]"
             />
           </span>
-          <span>{done ? "View Leaderboard" : "Start Quiz"}</span>
+          <span>{done ? t("viewLeaderboard") : t("startQuiz")}</span>
           <ArrowIcon className="h-[22px] w-[22px]" />
           <img
             src="/quiz/diya.png"
@@ -216,7 +218,7 @@ export function QuizHomeScreen({ completed = false }: { completed?: boolean }) {
         {done && (
           <p className="mt-[12px] flex items-center justify-center gap-[6px] text-[13.5px] leading-[18px] font-semibold text-[#8A4A1E]">
             <ClockIcon className="h-[15px] w-[15px] shrink-0" />
-            {isLastDay ? "Last quiz done! Winners will be announced soon." : "New quiz goes live tomorrow!"}
+            {isLastDay ? t("lastDay") : t("tomorrow")}
           </p>
         )}
       </footer>
@@ -280,24 +282,19 @@ function OrnamentLine({ className }: IconProps) {
   );
 }
 
-const WINNER_RULES = [
-  "1-10 नवंबर के कुल स्कोर के आधार पर विजेताओं की घोषणा की जाएगी।",
-  "रोज खेल और अपना स्कोर जितना हो सके बढ़ाए। कोई भी आज का क्विज़ मिस न करें।",
-  "विजेताओं की घोषणा और उनसे संपर्क 30 नवंबर तक किया जाएगा।",
-  "यदि कुल स्कोर समान (टाई) होता है, तो सभी क्विज़ को कम समय में पूरा करने वाले प्रतिभागी को प्राथमिकता दी जाएगी।",
-];
-
 function WinnerSelectionCard() {
+  const { t } = useI18n();
+  const rules = [t("rule1"), t("rule2"), t("rule3"), t("rule4")];
   return (
     <section className="relative z-10 mx-[14px] mt-[8px] shrink-0 overflow-hidden rounded-[16px] border border-[#F3D7B4] bg-[linear-gradient(180deg,#FFF6EA_0%,#FDECD6_100%)] px-[12px] pt-[10px] pb-[10px] shadow-[0_6px_14px_rgba(175,95,35,0.10)]">
       <ConfettiBurst className="pointer-events-none absolute top-[8px] right-[10px] h-[22px] w-[22px] opacity-80" />
       <ConfettiBurst className="pointer-events-none absolute top-[28px] right-[28px] h-[14px] w-[14px] opacity-70" />
       <div className="flex items-center gap-[8px] pr-[28px]">
         <RedTrophy className="h-[22px] w-[22px] shrink-0" />
-        <h2 className="text-[13.5px] leading-[17px] font-extrabold text-[#E24A1C]">विजेताओं का चयन कैसे होगा?</h2>
+        <h2 className="text-[13.5px] leading-[17px] font-extrabold text-[#E24A1C]">{t("winnerTitle")}</h2>
       </div>
       <ol className="mt-[8px] flex flex-col gap-[7px]">
-        {WINNER_RULES.map((rule, index) => (
+        {rules.map((rule, index) => (
           <li key={rule} className="flex items-start gap-[8px]">
             <span className="mt-[1px] flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded-full bg-[#F08A2E] text-[9px] font-black text-white">
               {index + 1}

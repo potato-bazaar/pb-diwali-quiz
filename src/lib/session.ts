@@ -9,10 +9,12 @@ export type QuizSession = {
   token: string;
   userId: string;
   userName: string;
+  /** App language from the profile, the token, or the quiz URL. */
+  language: string;
 };
 
 const SESSION_KEY = "pb-diwali-quiz:session";
-const EMPTY: QuizSession = { token: "", userId: "", userName: "" };
+const EMPTY: QuizSession = { token: "", userId: "", userName: "", language: "" };
 
 function readStored(): QuizSession {
   try {
@@ -28,10 +30,12 @@ export function captureSessionFromUrl() {
   const params = new URLSearchParams(window.location.search);
   const token = params.get("token")?.trim();
   if (!token) return;
+  const previous = readStored();
   const session: QuizSession = {
     token,
     userId: params.get("userId")?.trim() ?? "",
     userName: (params.get("userName") ?? params.get("name"))?.trim() ?? "",
+    language: (params.get("language") ?? params.get("lang") ?? previous.language ?? "").trim(),
   };
   try {
     window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
