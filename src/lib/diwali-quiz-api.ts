@@ -88,8 +88,29 @@ export async function fetchProfileLanguage(): Promise<string | null> {
   }
 }
 
-export function fetchQuizStatus() {
-  return request<{ contest: QuizContest; player: QuizPlayerStatus }>("/status");
+/** Contest status. A login token adds this player's attempts; without one, only the live switch comes back. */
+export async function fetchQuizStatus() {
+  const { token } = getSession();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  let response: Response;
+  try {
+    response = await fetch(`${QUIZ_API}/status`, { headers });
+  } catch {
+    throw new QuizApiError("Network error. Check your internet connection.", 0, "NETWORK");
+  }
+
+  const body = await response.json().catch(() => null);
+  if (!response.ok || body?.success === false) {
+    throw new QuizApiError(
+      body?.message || `Request failed (${response.status}).`,
+      response.status,
+      body?.code || (response.status === 401 ? "UNAUTHORIZED" : "REQUEST_FAILED"),
+      body?.data,
+    );
+  }
+  return body.data as { contest: QuizContest; player: QuizPlayerStatus | null };
 }
 
 /* ---------- POST /attempts ---------- */
