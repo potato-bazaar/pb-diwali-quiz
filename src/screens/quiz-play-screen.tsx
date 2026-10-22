@@ -673,9 +673,9 @@ function ResultCard({
         <CloseIcon className="h-[24px] w-[24px] drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]" />
       </button>
 
-      <div className="relative z-[1] px-[22px] pt-[clamp(112px,19dvh,156px)]">
-      {/* Score card sits in the sky; the gift and diya are drawn over its left and right edges */}
-      <section className="relative mx-auto w-full max-w-[330px] shrink-0 overflow-visible rounded-[28px] bg-[#FFF9F1] px-[14px] pt-[44px] pb-[14px] shadow-[0_16px_36px_rgba(160,80,30,0.22)]">
+      <div className="relative px-[22px] pt-[clamp(112px,19dvh,156px)]">
+      {/* Whole cream card stays above the gift and diya overlay */}
+      <section className="relative z-[3] mx-auto w-full max-w-[330px] shrink-0 overflow-visible rounded-[28px] bg-[#FFF9F1] px-[14px] pt-[44px] pb-[14px] shadow-[0_16px_36px_rgba(160,80,30,0.22)]">
         <div className="absolute top-[-32px] left-1/2 flex h-[72px] w-[72px] -translate-x-1/2 items-center justify-center rounded-full bg-[#FFF9F1] shadow-[0_8px_16px_rgba(160,80,30,0.08)]">
           <span className="flex h-[54px] w-[54px] items-center justify-center rounded-full bg-[radial-gradient(circle_at_32%_28%,#5ED67A,#2EAE4A)] shadow-[0_6px_14px_rgba(36,150,60,0.38)]">
             <svg viewBox="0 0 24 24" className="h-[30px] w-[30px]" fill="none" aria-hidden="true">
@@ -704,7 +704,7 @@ function ResultCard({
           {t("correctLine", { correct: attempt.correct, total: quiz.questions.length })}
         </p>
 
-        <div className="relative mt-[16px] grid grid-cols-2 gap-[10px]">
+        <div className="relative z-[3] mt-[16px] grid grid-cols-2 gap-[10px]">
           <div className="rounded-[16px] bg-[#FFF1E6] px-[8px] py-[12px] text-center">
             <ScoreTrophy className="mx-auto h-[32px] w-[32px]" />
             <p className="mt-[6px] text-[12.5px] leading-[16px] font-bold text-[#D2652E]">{t("todayScore")}</p>
@@ -726,7 +726,7 @@ function ResultCard({
         className="pointer-events-none absolute inset-0 z-[2] h-full w-full object-cover object-top select-none"
       />
 
-      <div className="absolute inset-x-0 bottom-[clamp(16px,3.2dvh,32px)] z-[3] mx-auto flex w-[calc(100%-44px)] max-w-[330px] flex-col gap-[12px]">
+      <div className="absolute inset-x-0 bottom-[clamp(16px,3.2dvh,32px)] z-[4] mx-auto flex w-[calc(100%-44px)] max-w-[330px] flex-col gap-[12px]">
       <section className="relative w-full shrink-0 overflow-hidden rounded-[18px] bg-[linear-gradient(180deg,#FFF8EE_0%,#FFF3E4_100%)] px-[8px] py-[12px] text-left shadow-[0_8px_18px_rgba(190,110,50,0.12)]">
         <CalendarDiya className="pointer-events-none absolute top-1/2 left-[2px] h-[58px] w-[58px] -translate-y-1/2" />
         <FireworkBurst className="pointer-events-none absolute top-[2px] right-[2px] h-[48px] w-[48px]" />
