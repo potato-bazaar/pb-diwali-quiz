@@ -19,6 +19,7 @@ import {
   attemptAnswers,
   getQuizDay,
   loadAttempt,
+  playedTodayLocally,
   saveAttempt,
   scoreAnswers,
   type SubmittedAttempt,
@@ -120,7 +121,7 @@ function DayQuiz({ quiz, alreadyPlayed }: { quiz: QuizDay; alreadyPlayed: boolea
   const total = quiz.questions.length;
   // An attempt already stored when this screen opens means this day is finished.
   // Coming back into the quiz must not deal the questions again.
-  const openedDone = useRef(loadAttempt(quiz.day) !== null || alreadyPlayed);
+  const openedDone = useRef(playedTodayLocally(quiz.day) || alreadyPlayed);
   useEffect(() => {
     if (openedDone.current) router.replace("/");
   }, [router]);

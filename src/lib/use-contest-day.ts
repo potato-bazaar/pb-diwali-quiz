@@ -5,6 +5,7 @@ import { QUESTION_BANK } from "@/data/question-bank";
 import {
   ENDED,
   NOT_LIVE,
+  isSubmittedToday,
   resolveContestDay,
   type ContestDayNumber,
 } from "@/lib/contest";
@@ -20,9 +21,10 @@ export type ContestState = {
 };
 
 function playedOnServer(day: ContestDayNumber, contest: QuizContest, player: QuizPlayerStatus | null | undefined) {
-  if (day < 1 || !player) return false;
-  if (player.attemptedDays?.includes(day)) return true;
-  return player.hasAttemptedToday && contest.playableDay === day;
+  if (day < 1 || !player?.hasAttemptedToday || contest.playableDay !== day) return false;
+  // Only an attempt finished today hides Start Quiz. A previous day must show Start again.
+  if (player.attemptedAt) return isSubmittedToday(player.attemptedAt);
+  return false;
 }
 
 function dayFromServer(contest: QuizContest): ContestDayNumber {

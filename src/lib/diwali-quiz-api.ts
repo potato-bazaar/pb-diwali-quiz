@@ -66,6 +66,8 @@ export type QuizPlayerStatus = {
   remainingDays: number[];
   /** True when the server already has an attempt for the current playable day. */
   hasAttemptedToday: boolean;
+  /** When that attempt was finished. Start Quiz returns on the next calendar day. */
+  attemptedAt?: string | null;
   /** False once today's quiz is done, or when no day can be played. */
   canPlayToday: boolean;
 };

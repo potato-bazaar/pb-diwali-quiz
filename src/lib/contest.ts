@@ -76,6 +76,20 @@ export type SubmittedAttempt = {
   synced?: boolean;
 };
 
+/** True when this finish time falls on today's date in India. */
+export function isSubmittedToday(submittedAt?: string | null): boolean {
+  if (!submittedAt) return false;
+  const played = new Date(submittedAt);
+  if (Number.isNaN(played.getTime())) return false;
+  return indiaDate(played) === indiaDate(new Date());
+}
+
+/** A saved attempt only blocks Start Quiz on the calendar day it was finished. */
+export function playedTodayLocally(day: number): boolean {
+  const attempt = loadAttempt(day);
+  return attempt !== null && isSubmittedToday(attempt.submittedAt);
+}
+
 const attemptKey = (day: number) => `pb-diwali-quiz:day-${day}`;
 
 export function loadAttempt(day: number): SubmittedAttempt | null {

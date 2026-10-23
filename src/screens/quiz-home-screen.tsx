@@ -3,7 +3,7 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { QUESTION_BANK } from "@/data/question-bank";
-import { loadAttempt, resolveContestDay } from "@/lib/contest";
+import { playedTodayLocally, resolveContestDay } from "@/lib/contest";
 import { useI18n } from "@/components/language-provider";
 import { postToNative } from "@/lib/native-bridge";
 import { useContestDay } from "@/lib/use-contest-day";
@@ -53,7 +53,7 @@ export function QuizHomeScreen({ completed = false }: { completed?: boolean }) {
   }, []);
   const day = contestState?.day ?? clockDay;
   const isLastDay = day !== null && day >= QUESTION_BANK.length;
-  const savedToday = day !== null && day >= 1 && loadAttempt(day) !== null;
+  const savedToday = day !== null && day >= 1 && playedTodayLocally(day);
   const ready = day !== null;
   const playedToday = savedToday || (contestState?.playedToday ?? false);
   // Right after the quiz, `/completed` shows this screen before the day check returns.
