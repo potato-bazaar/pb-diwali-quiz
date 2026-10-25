@@ -15,27 +15,49 @@ export type QuizSession = {
 const EMPTY: QuizSession = { token: "", userId: "", userName: "", language: "" };
 const SESSION_KEY = "pb-diwali-quiz:session";
 
-function injectedLanguage(): string {
+function readWindowSession(): Partial<QuizSession> {
   try {
-    const injected = (window as Window & { __PB_ZONE_SESSION__?: { language?: string } }).__PB_ZONE_SESSION__;
-    if (injected?.language) return injected.language.trim();
-    const raw = window.sessionStorage.getItem("pbZoneSession");
-    if (!raw) return "";
-    const parsed = JSON.parse(raw) as { language?: string };
-    return parsed.language?.trim() ?? "";
+    return (window as Window & { __PB_ZONE_SESSION__?: Partial<QuizSession> }).__PB_ZONE_SESSION__ ?? {};
   } catch {
-    return "";
+    return {};
   }
+}
+
+function readPbZoneJson(): Partial<QuizSession> {
+  try {
+    const raw = window.sessionStorage.getItem("pbZoneSession");
+    return raw ? (JSON.parse(raw) as Partial<QuizSession>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function injectedLanguage(): string {
+  return (readWindowSession().language || readPbZoneJson().language || "").trim();
 }
 
 function readInjected(): QuizSession {
   try {
-    const token = window.sessionStorage.getItem("pbZoneToken")?.trim() ?? "";
+    const fromWindow = readWindowSession();
+    const fromJson = readPbZoneJson();
+    const token =
+      window.sessionStorage.getItem("pbZoneToken")?.trim() ||
+      fromWindow.token?.trim() ||
+      fromJson.token?.trim() ||
+      "";
     if (!token) return EMPTY;
     return {
       token,
-      userId: window.sessionStorage.getItem("pbZoneUserId")?.trim() ?? "",
-      userName: window.sessionStorage.getItem("pbZoneUserName")?.trim() ?? "",
+      userId:
+        window.sessionStorage.getItem("pbZoneUserId")?.trim() ||
+        fromWindow.userId?.trim() ||
+        fromJson.userId?.trim() ||
+        "",
+      userName:
+        window.sessionStorage.getItem("pbZoneUserName")?.trim() ||
+        fromWindow.userName?.trim() ||
+        fromJson.userName?.trim() ||
+        "",
       language: injectedLanguage(),
     };
   } catch {
@@ -81,4 +103,10 @@ export function getSession(): QuizSession {
   const injected = readInjected();
   if (injected.token) return injected;
   return readStored();
+}
+
+export function rememberLanguage(language: string) {
+  if (typeof window === "undefined" || !language.trim()) return;
+  const current = getSession();
+  remember({ ...current, language: language.trim() });
 }

@@ -46,19 +46,33 @@ function decodeJwt(token: string): Record<string, unknown> | null {
   }
 }
 
-/** URL language wins, then the app session, then a language claim on the token. */
+/** Token language first, then the app session / URL, then English. */
 export function languageFromSession(): AppLanguage {
   if (typeof window === "undefined") return "en";
   const params = new URLSearchParams(window.location.search);
-  const fromUrl = normalizeLanguage(params.get("language") ?? params.get("lang"));
-  if (fromUrl) return fromUrl;
   const session = getSession();
-  return normalizeLanguage(session.language) ?? languageFromToken(session.token) ?? "en";
+  return (
+    languageFromToken(session.token) ??
+    normalizeLanguage(session.language) ??
+    normalizeLanguage(params.get("language") ?? params.get("lang")) ??
+    "en"
+  );
 }
 
-function languageFromToken(token: string): AppLanguage | null {
+export function languageFromToken(token: string): AppLanguage | null {
   const payload = decodeJwt(token);
   if (!payload) return null;
-  const raw = payload.language ?? payload.preferredLanguage ?? payload.appLanguage;
+  const nested =
+    payload.user && typeof payload.user === "object"
+      ? (payload.user as Record<string, unknown>)
+      : null;
+  const raw =
+    payload.language ??
+    payload.preferredLanguage ??
+    payload.appLanguage ??
+    payload.lang ??
+    nested?.language ??
+    nested?.preferredLanguage ??
+    nested?.appLanguage;
   return normalizeLanguage(typeof raw === "string" ? raw : null);
 }

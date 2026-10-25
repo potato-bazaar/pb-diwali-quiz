@@ -53,3 +53,33 @@ export function registerInterest(source = "home") {
     body: JSON.stringify({ source }),
   });
 }
+
+function languageFromRecord(record: unknown): string | null {
+  if (!record || typeof record !== "object") return null;
+  const value = record as Record<string, unknown>;
+  const raw = value.language ?? value.preferredLanguage ?? value.appLanguage ?? value.lang;
+  return typeof raw === "string" && raw.trim() ? raw.trim() : null;
+}
+
+/** GET /users/language — language saved on the logged-in JWT. */
+export async function fetchProfileLanguage(): Promise<string | null> {
+  const { token } = getSession();
+  if (!token) return null;
+
+  try {
+    const response = await fetch(`${API_BASE_URL}users/language`, {
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    });
+    const body = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+    if (!response.ok || !body || body.success === false) return null;
+    const data = body.data;
+    return (
+      languageFromRecord(data) ||
+      languageFromRecord(body) ||
+      (data && typeof data === "object" ? languageFromRecord((data as Record<string, unknown>).user) : null) ||
+      (typeof data === "string" ? data.trim() : null)
+    );
+  } catch {
+    return null;
+  }
+}

@@ -2,7 +2,9 @@
 
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { translateHome, type HomeMessageKey } from "@/i18n/home-messages";
-import { languageFromSession, type AppLanguage } from "@/lib/language";
+import { fetchProfileLanguage } from "@/lib/diwali-quiz-api";
+import { languageFromSession, languageFromToken, normalizeLanguage, type AppLanguage } from "@/lib/language";
+import { getSession, rememberLanguage } from "@/lib/session";
 
 type I18n = {
   lang: AppLanguage;
@@ -18,14 +20,43 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   const [lang, setLang] = useState<AppLanguage>("en");
 
   useEffect(() => {
-    const apply = () => {
-      const next = languageFromSession();
+    let cancelled = false;
+
+    const apply = (next: AppLanguage) => {
+      if (cancelled || !next) return;
       setLang(next);
       document.documentElement.lang = next;
     };
-    apply();
-    window.addEventListener("pbzone-session-ready", apply);
-    return () => window.removeEventListener("pbzone-session-ready", apply);
+
+    const refresh = async () => {
+      const session = getSession();
+      apply(
+        languageFromToken(session.token) ??
+          languageFromSession() ??
+          "en",
+      );
+
+      const fromApi = normalizeLanguage(await fetchProfileLanguage());
+      if (fromApi) {
+        rememberLanguage(fromApi);
+        apply(fromApi);
+      }
+    };
+
+    void refresh();
+    const onReady = () => {
+      void refresh();
+    };
+    window.addEventListener("pbzone-session-ready", onReady);
+    const retry = window.setTimeout(() => {
+      void refresh();
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener("pbzone-session-ready", onReady);
+      window.clearTimeout(retry);
+    };
   }, []);
 
   const value = useMemo<I18n>(() => ({ lang, t: (key, vars) => translateHome(lang, key, vars) }), [lang]);

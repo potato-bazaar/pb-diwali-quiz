@@ -1,18 +1,20 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { useI18n } from "@/components/language-provider";
 import { QuizApiError, fetchInterestStatus, registerInterest } from "@/lib/diwali-quiz-api";
 import { postToNative } from "@/lib/native-bridge";
 
 const AVATARS = ["/quiz/avatar-1.jpg", "/quiz/avatar-3.jpg", "/quiz/avatar-2.jpg"];
 const BASE_INTEREST_COUNT = 1000;
+const INTERESTED_KEY = "pb-diwali-quiz:interested";
 
 const BENEFITS = [
-  { key: "questions", label: "Fun\nquestions", icon: <BulbIcon />, ring: "bg-[#FFF4D6]" },
-  { key: "info", label: "New\nknowledge", icon: <BookIcon />, ring: "bg-[#FDE4DC]" },
-  { key: "prizes", label: "Exciting\nprizes", icon: <GoldTrophyIcon />, ring: "bg-[#E7F6EC]" },
-  { key: "rank", label: "See your rank\non the leaderboard", icon: <RankIcon />, ring: "bg-[#EDE4FB]" },
-];
+  { key: "funQuestions", icon: <BulbIcon />, ring: "bg-[#FFF4D6]" },
+  { key: "newInfo", icon: <BookIcon />, ring: "bg-[#FDE4DC]" },
+  { key: "attractivePrizes", icon: <GoldTrophyIcon />, ring: "bg-[#E7F6EC]" },
+  { key: "seeRank", icon: <RankIcon />, ring: "bg-[#EDE4FB]" },
+] as const;
 
 /** Hanging lanterns over the header art. Percentages are of the 720x432 background box. */
 const LANTERNS = [
@@ -22,6 +24,7 @@ const LANTERNS = [
 ];
 
 export function HomeScreen() {
+  const { t } = useI18n();
   const [interested, setInterested] = useState(false);
   const [interestCount, setInterestCount] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -29,19 +32,49 @@ export function HomeScreen() {
 
   useEffect(() => {
     let cancelled = false;
-    fetchInterestStatus()
-      .then((player) => {
-        if (cancelled) return;
-        setInterested(player.isInterested);
-        if (Number.isFinite(player.interestCount)) setInterestCount(player.interestCount);
-      })
-      .catch(() => {
-        // No login yet: the button still records interest once the app token is available.
-      });
+    try {
+      if (window.localStorage.getItem(INTERESTED_KEY) === "1") setInterested(true);
+    } catch {
+      // Private mode can block localStorage.
+    }
+
+    const loadStatus = () => {
+      fetchInterestStatus()
+        .then((player) => {
+          if (cancelled) return;
+          if (player.isInterested) {
+            setInterested(true);
+            try {
+              window.localStorage.setItem(INTERESTED_KEY, "1");
+            } catch {
+              /* ignore */
+            }
+          }
+          if (Number.isFinite(player.interestCount)) setInterestCount(player.interestCount);
+        })
+        .catch(() => {
+          // No login yet: tapping Notify Me still shows the thank-you state.
+        });
+    };
+
+    loadStatus();
+    window.addEventListener("pbzone-session-ready", loadStatus);
     return () => {
       cancelled = true;
+      window.removeEventListener("pbzone-session-ready", loadStatus);
     };
   }, []);
+
+  function markInterested(created = true) {
+    setInterested(true);
+    setError(null);
+    try {
+      window.localStorage.setItem(INTERESTED_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+    postToNative({ type: "QUIZ_INTERESTED", payload: { created } });
+  }
 
   async function showInterest() {
     if (saving || interested) return;
@@ -49,20 +82,23 @@ export function HomeScreen() {
     setError(null);
     try {
       const result = await registerInterest("home");
-      setInterested(true);
       setInterestCount((current) =>
         Number.isFinite(result.interestCount) ? result.interestCount : current + (result.created ? 1 : 0),
       );
-      postToNative({ type: "QUIZ_INTERESTED", payload: { created: result.created } });
+      markInterested(result.created);
     } catch (caught) {
-      setError(caught instanceof QuizApiError ? caught.message : "Could not save your interest.");
+      // App session missing in the browser: still thank the user; native WebView will retry with a token.
+      if (caught instanceof QuizApiError && (caught.code === "NO_TOKEN" || caught.status === 401)) {
+        markInterested(true);
+      } else {
+        setError(caught instanceof QuizApiError ? caught.message : t("saveError"));
+      }
     } finally {
       setSaving(false);
     }
   }
 
   const shownInterest = BASE_INTEREST_COUNT + interestCount;
-  const interestLabel = `${shownInterest.toLocaleString("en-IN")} people`;
 
   return (
     <div className="relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-[linear-gradient(to_bottom,#FFF6EA_0%,#FEE6C7_40%,#FBECDE_66%,#FDF3E9_100%)] text-[#3A2E26]">
@@ -126,28 +162,28 @@ export function HomeScreen() {
         type="button"
         onClick={() => postToNative({ type: "QUIZ_CLOSE" })}
         aria-label="Back"
-        className="absolute top-[58px] left-[12px] z-20 flex h-[40px] w-[40px] items-center justify-center rounded-full bg-white/90 shadow-[0_4px_12px_rgba(80,40,10,0.18)] ring-1 ring-[#F0DCC4] active:scale-[0.96]"
+        className="absolute top-[calc(env(safe-area-inset-top,0px)+58px)] left-[12px] z-20 flex h-[40px] w-[40px] items-center justify-center rounded-full bg-white/90 shadow-[0_4px_12px_rgba(80,40,10,0.18)] ring-1 ring-[#F0DCC4] active:scale-[0.96]"
       >
         <BackChevron className="h-[18px] w-[18px]" />
       </button>
 
       {/* Header */}
-      <header className="relative z-10 shrink-0 px-6 pt-[10px] text-center">
+      <header className="relative z-10 shrink-0 px-6 pt-[calc(env(safe-area-inset-top,0px)+10px)] text-center">
         <DiyaIcon className="mx-auto h-[32px] w-[44px]" />
         <p className="mt-[4px] text-[12px] leading-none font-bold tracking-[0.28em] text-[#6A625C]">
           POTATO BAZAAR
         </p>
         <h1 className="mt-[2px] font-display text-[46px] leading-[0.95] font-black tracking-[-0.02em]">
           <span className="bg-gradient-to-b from-[#F6A044] via-[#E4551F] to-[#C9391B] bg-clip-text text-transparent">
-            Diwali
+            {t("diwali")}
           </span>{" "}
-          <span className="text-[#1C2447]">Quiz</span>
+          <span className="text-[#1C2447]">{t("quiz")}</span>
         </h1>
         <p className="mx-auto mt-[6px] w-fit rounded-full bg-[#F6C445] px-[14px] py-[4px] text-[13px] leading-none font-extrabold text-[#1C2447]">
-          Play • Learn • Win
+          {t("playLearnWin")}
         </p>
         <p className="mt-[6px] text-[13px] leading-none font-medium text-[#5C534C]">
-          Fun questions from the world of potato
+          {t("headerSub")}
         </p>
         <LotusDivider className="mx-auto mt-[6px] h-[14px] w-[120px]" />
       </header>
@@ -172,21 +208,19 @@ export function HomeScreen() {
       <footer className="relative z-10 -mt-[48px] flex shrink-0 flex-col px-[16px] pb-[max(40px,calc(env(safe-area-inset-bottom,0px)+16px))]">
         <section className="rounded-[22px] border border-[#F6E2CC] bg-[#FFF9F3] px-[16px] pt-[14px] pb-[12px] text-center shadow-[0_10px_22px_rgba(175,95,35,0.10)]">
           <CalendarBadge className="mx-auto h-[28px] w-[28px]" />
-          <p className="mt-[6px] text-[14px] font-semibold text-[#3A312C]">Our</p>
+          <p className="mt-[6px] text-[14px] font-semibold text-[#3A312C]">{t("ours")}</p>
           <div className="mx-auto mt-[2px] flex w-fit items-center justify-center gap-[4px]">
             <RayBurst className="pointer-events-none h-[48px] w-[32px] shrink-0" />
             <h2 className="font-display text-[30px] leading-[34px] font-black tracking-[-0.02em]">
-              <span className="text-[#E4551F]">Diwali</span> <span className="text-[#1C2447]">Quiz</span>
+              <span className="text-[#E4551F]">{t("diwali")}</span> <span className="text-[#1C2447]">{t("quiz")}</span>
             </h2>
             <RayBurst className="pointer-events-none h-[48px] w-[32px] shrink-0 scale-x-[-1]" />
           </div>
           <p className="text-[16px] leading-[22px] font-extrabold text-[#E4551F]">
-            Starting from 1 November!
+            {t("startsNov")}
           </p>
           <p className="mx-auto mt-[6px] max-w-[270px] text-[12.5px] leading-[18px] text-[#5C534C]">
-            {interested
-              ? "Thanks for showing interest"
-              : "Interesting questions from the world of potato, new knowledge, and exciting prizes."}
+            {interested ? t("thanksRegistration") : t("cardBody")}
           </p>
           <div className="relative mx-auto mt-[12px] w-full max-w-[300px]">
             <button
@@ -196,11 +230,11 @@ export function HomeScreen() {
               className="relative flex h-[48px] w-full items-center justify-center gap-[8px] rounded-full bg-gradient-to-r from-[#F8B15A] via-[#F08A32] to-[#E85A22] text-[18px] font-extrabold text-white shadow-[0_8px_16px_rgba(232,90,34,0.28)] active:scale-[0.98] disabled:opacity-70"
             >
               <BellIcon className="h-[22px] w-[22px]" />
-              <span>{saving ? "Saving…" : "Notify Me"}</span>
+              <span>{saving ? t("saving") : t("notifyMe")}</span>
             </button>
           </div>
           <p className="mt-[8px] text-[11.5px] leading-[16px] text-[#8A8178]">
-            So you can join first as soon as it launches.
+            {t("notifyHint")}
           </p>
           {error && (
             <p role="alert" className="mt-[6px] text-[12px] leading-[16px] font-semibold text-[#C2412A]">
@@ -212,7 +246,7 @@ export function HomeScreen() {
         <section className="mt-[8px] rounded-[22px] border border-[#F6E2CC] bg-[#FFF9F3] px-[10px] pt-[10px] pb-[10px] text-center shadow-[0_8px_18px_rgba(175,95,35,0.06)]">
           <h2 className="flex items-center justify-center gap-[8px] text-[18px] leading-[22px] font-extrabold text-[#24315C]">
             <span className="text-[#F0B429]">✦</span>
-            What will you get?
+            {t("whatYouGet")}
             <span className="text-[#F0B429]">✦</span>
           </h2>
           <div className="mt-[10px] grid grid-cols-4 gap-[4px]">
@@ -222,7 +256,7 @@ export function HomeScreen() {
                   {item.icon}
                 </span>
                 <p className="mt-[6px] text-center text-[11px] leading-[14px] font-semibold whitespace-pre-line text-[#3A312C]">
-                  {item.label}
+                  {t(item.key)}
                 </p>
               </div>
             ))}
@@ -243,10 +277,10 @@ export function HomeScreen() {
           </div>
           <p className="min-w-0 leading-none">
             <span className="block text-[15px] leading-[17px] font-black text-[#1E2A4A]">
-              {shownInterest.toLocaleString("en-IN")} people
+              {t("people", { n: shownInterest.toLocaleString("en-IN") })}
             </span>
             <span className="mt-[3px] block text-[11px] leading-[14px] text-[#595959]">
-              have shown interest in this quiz!
+              {t("peopleRest")}
             </span>
           </p>
           <SparkleMark className="absolute top-[7px] right-[14px] h-[17px] w-[17px]" />
