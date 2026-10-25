@@ -122,8 +122,17 @@ export function HomeScreen() {
         />
       </div>
 
+      <button
+        type="button"
+        onClick={() => postToNative({ type: "QUIZ_CLOSE" })}
+        aria-label="Back"
+        className="absolute top-[58px] left-[12px] z-20 flex h-[40px] w-[40px] items-center justify-center rounded-full bg-white/90 shadow-[0_4px_12px_rgba(80,40,10,0.18)] ring-1 ring-[#F0DCC4] active:scale-[0.96]"
+      >
+        <BackChevron className="h-[18px] w-[18px]" />
+      </button>
+
       {/* Header */}
-      <header className="relative z-10 shrink-0 px-6 pt-[max(26px,calc(env(safe-area-inset-top)+10px))] text-center">
+      <header className="relative z-10 shrink-0 px-6 pt-[10px] text-center">
         <DiyaIcon className="mx-auto h-[32px] w-[44px]" />
         <p className="mt-[4px] text-[12px] leading-none font-bold tracking-[0.28em] text-[#6A625C]">
           POTATO BAZAAR
@@ -143,16 +152,16 @@ export function HomeScreen() {
         <LotusDivider className="mx-auto mt-[6px] h-[14px] w-[120px]" />
       </header>
 
-      <div className="relative z-0 mt-[8px] w-full shrink-0">
+      <div className="relative z-0 min-h-0 w-full flex-1 overflow-hidden">
         <img
           src="/quiz/potato-sack-scene.jpg"
           alt=""
           draggable={false}
-          className="pointer-events-none block w-full select-none [-webkit-mask-image:linear-gradient(to_bottom,transparent_0%,rgba(0,0,0,0.25)_7%,black_20%,black_46%,rgba(0,0,0,0.45)_62%,transparent_82%)] [mask-image:linear-gradient(to_bottom,transparent_0%,rgba(0,0,0,0.25)_7%,black_20%,black_46%,rgba(0,0,0,0.45)_62%,transparent_82%)]"
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover object-[center_42%] select-none [-webkit-mask-image:linear-gradient(to_bottom,transparent_0%,rgba(0,0,0,0.25)_7%,black_20%,black_62%,rgba(0,0,0,0.45)_82%,transparent_100%)] [mask-image:linear-gradient(to_bottom,transparent_0%,rgba(0,0,0,0.25)_7%,black_20%,black_62%,rgba(0,0,0,0.45)_82%,transparent_100%)]"
         />
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 bottom-[8%] h-[42%]"
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-[42%]"
           style={{
             background:
               "linear-gradient(to bottom, rgba(253,232,208,0) 0%, rgba(248,196,140,0.18) 28%, rgba(247,186,128,0.45) 58%, rgba(248,214,180,0) 100%)",
@@ -160,7 +169,7 @@ export function HomeScreen() {
         />
       </div>
 
-      <footer className="relative z-10 -mt-[48px] flex min-h-0 flex-1 flex-col px-[16px] pb-[10px]">
+      <footer className="relative z-10 -mt-[48px] flex shrink-0 flex-col px-[16px] pb-[max(40px,calc(env(safe-area-inset-bottom,0px)+16px))]">
         <section className="rounded-[22px] border border-[#F6E2CC] bg-[#FFF9F3] px-[16px] pt-[14px] pb-[12px] text-center shadow-[0_10px_22px_rgba(175,95,35,0.10)]">
           <CalendarBadge className="mx-auto h-[28px] w-[28px]" />
           <p className="mt-[6px] text-[14px] font-semibold text-[#3A312C]">Our</p>
@@ -282,6 +291,20 @@ function ThanksBanner() {
 /* ---------- Icons ---------- */
 
 type IconProps = { className?: string };
+
+function BackChevron({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true" fill="none">
+      <path
+        d="M15 5.5 8.5 12 15 18.5"
+        stroke="#1C2447"
+        strokeWidth="2.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 function DiyaIcon({ className, tone = "gold" }: IconProps & { tone?: "gold" | "light" }) {
   if (tone === "light") {
