@@ -122,7 +122,7 @@ export function HomeScreen() {
         type="button"
         onClick={() => postToNative({ type: "QUIZ_CLOSE" })}
         aria-label="Back"
-        className="absolute top-[10px] left-[12px] z-20 flex h-[34px] w-[34px] items-center justify-center rounded-full bg-white/92 shadow-[0_4px_12px_rgba(80,40,10,0.16)] ring-1 ring-[#F0DCC4] active:scale-[0.96]"
+        className="absolute top-[26px] left-[12px] z-20 flex h-[34px] w-[34px] items-center justify-center rounded-full bg-white/92 shadow-[0_4px_12px_rgba(80,40,10,0.16)] ring-1 ring-[#F0DCC4] active:scale-[0.96]"
       >
         <BackChevron className="h-[16px] w-[16px]" />
       </button>
