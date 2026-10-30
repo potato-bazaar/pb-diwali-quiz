@@ -31,6 +31,7 @@ import { useContestDay, type ContestState } from "@/lib/use-contest-day";
 import { Fireworks } from "@/components/fireworks";
 import { useI18n } from "@/components/language-provider";
 import { localizeQuestion } from "@/data/localize-question";
+import { TERMS_ACCEPTED_KEY, termsCopy } from "@/i18n/terms";
 
 const PETALS: { key: string; style: CSSProperties }[] = [
   { key: "card-left", style: { top: "35%", left: "1.5%", transform: "rotate(-30deg) scale(0.8)" } },
@@ -79,6 +80,7 @@ type SyncState =
 
 export function QuizPlayScreen() {
   const contestState = useContestDay();
+  const [termsOk, setTermsOk] = useState(false);
 
   // Browsers allow sound only after a user gesture; the first tap anywhere unlocks it.
   useEffect(() => {
@@ -89,7 +91,18 @@ export function QuizPlayScreen() {
   return (
     <div className="relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-[linear-gradient(to_bottom,#FDF1E3_0%,#FDF3E6_45%,#FCEEDD_70%,#FBE3CA_100%)] text-[#141B36]">
       <PlayBackdrop />
-      {contestState === null ? null : contestState.day >= 1 ? (
+      {contestState === null ? null : !termsOk ? (
+        <TermsGate
+          onAccept={() => {
+            try {
+              window.localStorage.setItem(TERMS_ACCEPTED_KEY, "1");
+            } catch {
+              /* Private mode can block localStorage. */
+            }
+            setTermsOk(true);
+          }}
+        />
+      ) : contestState.day >= 1 ? (
         <DayQuiz
           key={contestState.day}
           quiz={getQuizDay(contestState.day)}
@@ -405,6 +418,72 @@ function DayQuiz({ quiz, alreadyPlayed }: { quiz: QuizDay; alreadyPlayed: boolea
 const longDate = (date: string) =>
   new Date(`${date}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 
+function TermsGate({ onAccept }: { onAccept: () => void }) {
+  const exit = useExit();
+  const { t, lang } = useI18n();
+  const copy = termsCopy(lang);
+  const [agreed, setAgreed] = useState(false);
+  const start = longDate(CONTEST_START);
+  const end = longDate(CONTEST_END);
+
+  return (
+    <>
+      <PlayNav onClose={exit} subtitle={`${start} – ${end}`} />
+      <main className="relative z-10 flex min-h-0 flex-1 flex-col px-[22px] pt-[4px] pb-[12px]">
+        <img
+          src="/quiz/gift-top.png"
+          alt=""
+          draggable={false}
+          className="mx-auto h-[56px] w-[56px] object-contain drop-shadow-[0_6px_10px_rgba(150,60,20,0.25)]"
+        />
+        <p className="mt-[6px] text-center text-[13px] leading-[16px] font-bold text-[#1C2447]">{copy.brand}</p>
+        <h2 className="mt-[2px] text-center font-display text-[22px] leading-[26px] font-black text-[#E2551F]">
+          {t("termsTitle")}
+        </h2>
+        <div className="mt-[10px] min-h-0 flex-1 overflow-y-auto rounded-[18px] border border-[#F3D7B4] bg-[rgba(255,252,246,0.9)] px-[14px] py-[12px] shadow-[0_6px_14px_rgba(175,95,35,0.08)]">
+          {copy.sections.map((section) => (
+            <section key={section.n} className="mb-[12px] last:mb-0">
+              <h3 className="text-[13.5px] leading-[18px] font-extrabold text-[#1C2447]">
+                {section.n}. {section.title}
+              </h3>
+              <p className="mt-[4px] text-[12.5px] leading-[18px] text-[#4A453F]">{section.body}</p>
+            </section>
+          ))}
+        </div>
+        <button
+          type="button"
+          aria-pressed={agreed}
+          onClick={() => setAgreed((current) => !current)}
+          className="relative z-20 mt-[10px] flex shrink-0 items-start gap-[10px] text-left active:opacity-80"
+        >
+          <span
+            aria-hidden="true"
+            className={`mt-[1px] flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-[6px] border-[1.5px] ${
+              agreed ? "border-[#E2461C] bg-[#E2461C]" : "border-[#D2B496] bg-white"
+            }`}
+          >
+            {agreed && (
+              <svg viewBox="0 0 24 24" className="h-[14px] w-[14px]" fill="none">
+                <path d="M5 12.5l5 5 9-10" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
+          </span>
+          <span className="min-w-0 text-[13px] leading-[18px] font-semibold text-[#3A312C]">{t("termsAgree")}</span>
+        </button>
+        <button
+          type="button"
+          disabled={!agreed}
+          onClick={onAccept}
+          className="relative z-20 mt-[10px] mb-[8px] flex h-[52px] w-full shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-[#F2742C] via-[#EC5F24] to-[#E2461C] text-[17px] font-bold text-white shadow-[0_10px_22px_rgba(226,80,28,0.36)] active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40"
+        >
+          {t("continue")}
+        </button>
+      </main>
+      <PlayFooter compact />
+    </>
+  );
+}
+
 function ContestClosed({ state }: { state: ContestState }) {
   const exit = useExit();
   const { t } = useI18n();
@@ -498,11 +577,13 @@ const FOOTER_VARS = {
   "--mascot": "60cqh",
 } as CSSProperties;
 
-function PlayFooter({ children }: { children?: ReactNode }) {
+function PlayFooter({ children, compact = false }: { children?: ReactNode; compact?: boolean }) {
   return (
     <footer
       style={FOOTER_VARS}
-      className="relative z-10 mt-auto flex h-[clamp(140px,calc(36dvh-92px),216px)] min-h-[112px] shrink-[100] items-end justify-center px-[38px] [container-type:size]"
+      className={`relative z-10 mt-auto flex shrink-[100] items-end justify-center px-[38px] [container-type:size] ${
+        compact ? "h-[clamp(52px,9dvh,68px)] min-h-[48px]" : "h-[clamp(140px,calc(36dvh-92px),216px)] min-h-[112px]"
+      }`}
     >
       {/* Floor the mascots stand on */}
       <div
@@ -533,11 +614,14 @@ function PlayFooter({ children }: { children?: ReactNode }) {
       {MARIGOLDS.map((flower) => (
         <Marigold key={flower.key} style={flower.style} />
       ))}
-      <Leaves className="pointer-events-none absolute bottom-[calc(var(--base)+var(--mascot)*0.22)] left-[-8px] h-[56px] w-[32px]" />
-      <Leaves className="pointer-events-none absolute right-[-8px] bottom-[calc(var(--base)+var(--mascot)*0.22)] h-[56px] w-[32px] -scale-x-100" />
-      {/* Mascots: each one bobs, then jumps with a backflip; the right one runs 3.5s behind */}
-      <MascotActor side="left" />
-      <MascotActor side="right" />
+      {!compact && (
+        <>
+          <Leaves className="pointer-events-none absolute bottom-[calc(var(--base)+var(--mascot)*0.22)] left-[-8px] h-[56px] w-[32px]" />
+          <Leaves className="pointer-events-none absolute right-[-8px] bottom-[calc(var(--base)+var(--mascot)*0.22)] h-[56px] w-[32px] -scale-x-100" />
+          <MascotActor side="left" />
+          <MascotActor side="right" />
+        </>
+      )}
       <BurningDiya className="left-[8px] h-[clamp(40px,5.8dvh,50px)]" />
       <BurningDiya className="right-[12px] h-[clamp(44px,6.4dvh,56px)] -scale-x-100" flicker="1.35s" glow="2.1s" delay="-0.7s" />
       <div className="relative z-10 flex w-full justify-center pb-[var(--base)]">{children}</div>
