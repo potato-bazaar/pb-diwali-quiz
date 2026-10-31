@@ -9,6 +9,8 @@ import { postToNative } from "@/lib/native-bridge";
 
 const TOTAL_DAYS = QUESTION_BANK.length;
 const PER_PAGE = 50;
+/** Quiet background poll so ranks stay live while the screen is open. */
+const POLL_MS = 8_000;
 
 type Board =
   | { status: "loading" }
@@ -31,6 +33,8 @@ function useLeaderboard() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const busy = useRef(false);
+  const boardRef = useRef(board);
+  boardRef.current = board;
 
   useEffect(() => {
     let cancelled = false;
@@ -51,6 +55,59 @@ function useLeaderboard() {
       });
     return () => {
       cancelled = true;
+    };
+  }, [attempt]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function refreshQuietly() {
+      const current = boardRef.current;
+      if (cancelled || busy.current) return;
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+      if (current.status !== "ready") return;
+      busy.current = true;
+      try {
+        const pages = await Promise.all(
+          Array.from({ length: current.page }, (_, i) => fetchLeaderboard(i + 1, PER_PAGE)),
+        );
+        if (cancelled) return;
+        const seen = new Set<number>();
+        const rows: LeaderboardEntry[] = [];
+        for (const data of pages) {
+          for (const row of data.leaderboard) {
+            if (seen.has(row.userId)) continue;
+            seen.add(row.userId);
+            rows.push(row);
+          }
+        }
+        const last = pages[pages.length - 1];
+        setBoard({
+          status: "ready",
+          rows,
+          page: last.page,
+          totalPages: last.totalPages,
+          totalPlayers: last.totalPlayers,
+          me: last.me,
+        });
+      } catch {
+        // Keep the last good board; the next tick tries again.
+      } finally {
+        busy.current = false;
+      }
+    }
+
+    const id = window.setInterval(() => {
+      void refreshQuietly();
+    }, POLL_MS);
+    const onVis = () => {
+      if (document.visibilityState === "visible") void refreshQuietly();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVis);
     };
   }, [attempt]);
 
