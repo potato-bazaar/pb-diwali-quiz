@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type CSSProperties, type UIEvent } from "react";
 import { QUESTION_BANK } from "@/data/question-bank";
+import { assignUniqueDailyWinners, completedWinnerDays, indiaToday, msUntilIndiaMidnight } from "@/lib/contest";
 import { QuizApiError, fetchLeaderboard, type LeaderboardEntry, type LeaderboardPage } from "@/lib/diwali-quiz-api";
 import { useI18n } from "@/components/language-provider";
 import { postToNative } from "@/lib/native-bridge";
@@ -147,6 +148,74 @@ function useLeaderboard() {
   return { board, loadingMore, retry, loadMore };
 }
 
+type DailyRow = { day: number; date: string; winner: LeaderboardEntry | null };
+
+type DailyBoard =
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "ready"; rows: DailyRow[] };
+
+function useDailyWinners() {
+  const [board, setBoard] = useState<DailyBoard>({ status: "loading" });
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      const days = completedWinnerDays();
+      if (days.length === 0) {
+        if (!cancelled) setBoard({ status: "ready", rows: [] });
+        return;
+      }
+      try {
+        const rankedByDay = await Promise.all(
+          days.map((quiz) =>
+            fetchLeaderboard(1, 50, quiz.day, quiz.date)
+              .then((data) => data.leaderboard)
+              .catch(() => [] as LeaderboardEntry[]),
+          ),
+        );
+        if (cancelled) return;
+        setBoard({
+          status: "ready",
+          rows: assignUniqueDailyWinners(days, rankedByDay)
+            .filter((row) => row.winner)
+            .reverse(),
+        });
+      } catch (error: unknown) {
+        if (!cancelled) setBoard({ status: "error", message: errorMessage(error) });
+      }
+    }
+
+    void load();
+    const poll = window.setInterval(() => {
+      void load();
+    }, POLL_MS);
+    const midnight = window.setTimeout(() => {
+      void load();
+    }, msUntilIndiaMidnight());
+    const onVis = () => {
+      if (document.visibilityState === "visible") void load();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      cancelled = true;
+      window.clearInterval(poll);
+      window.clearTimeout(midnight);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [attempt]);
+
+  return {
+    board,
+    retry: () => {
+      setBoard({ status: "loading" });
+      setAttempt((n) => n + 1);
+    },
+  };
+}
+
 const BURSTS: { key: string; tone: "red" | "gold"; style: CSSProperties }[] = [
   { key: "a", tone: "red", style: { top: 10, left: 46, width: 28, height: 28 } },
   { key: "b", tone: "gold", style: { top: 8, right: 108, width: 24, height: 24 } },
@@ -158,14 +227,18 @@ const CONFETTI: { key: string; style: CSSProperties }[] = [
 ];
 
 export function LeaderboardScreen() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const router = useRouter();
   const { board, loadingMore, retry, loadMore } = useLeaderboard();
+  const daily = useDailyWinners();
+  const [tab, setTab] = useState<"overall" | "daily">("overall");
 
   function onListScroll(event: UIEvent<HTMLOListElement>) {
     const list = event.currentTarget;
     if (list.scrollHeight - list.scrollTop - list.clientHeight < 240) loadMore();
   }
+
+  const till = formatShortDate(indiaToday(), lang);
 
   return (
     <div className="question-in relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-[linear-gradient(to_bottom,#FDF1E3_0%,#FDF4E8_40%,#FCEEDD_72%,#FBE6D0_100%)] text-[#141B36]">
@@ -206,59 +279,82 @@ export function LeaderboardScreen() {
             {t("leaderboard")}
           </p>
         </div>
-        <a
-          href="#how-ranking-works"
-          aria-label="How ranking works"
-          className="flex h-[40px] w-[40px] items-center justify-center justify-self-end rounded-full text-[#4A4A5A] active:scale-95 active:bg-[#F8DCC0]"
-        >
-          <svg viewBox="0 0 24 24" className="h-[24px] w-[24px]" fill="none" aria-hidden="true">
-            <circle cx="12" cy="12" r="9.2" stroke="currentColor" strokeWidth="1.7" />
-            <path
-              d="M9.6 9.4a2.5 2.5 0 1 1 3.3 2.4c-.6.2-.9.7-.9 1.3v.5"
-              stroke="currentColor"
-              strokeWidth="1.7"
-              strokeLinecap="round"
-            />
-            <circle cx="12" cy="16.6" r="1" fill="currentColor" />
-          </svg>
-        </a>
+        {tab === "overall" ? (
+          <a
+            href="#how-ranking-works"
+            aria-label="How ranking works"
+            className="flex h-[40px] w-[40px] items-center justify-center justify-self-end rounded-full text-[#4A4A5A] active:scale-95 active:bg-[#F8DCC0]"
+          >
+            <svg viewBox="0 0 24 24" className="h-[24px] w-[24px]" fill="none" aria-hidden="true">
+              <circle cx="12" cy="12" r="9.2" stroke="currentColor" strokeWidth="1.7" />
+              <path
+                d="M9.6 9.4a2.5 2.5 0 1 1 3.3 2.4c-.6.2-.9.7-.9 1.3v.5"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                strokeLinecap="round"
+              />
+              <circle cx="12" cy="16.6" r="1" fill="currentColor" />
+            </svg>
+          </a>
+        ) : (
+          <span />
+        )}
       </nav>
 
-      {/* The page stays put. Only the rows inside the card scroll. */}
-      <div className="relative z-10 flex min-h-0 flex-1 flex-col px-[14px] pt-[8px] pb-[calc(16px+env(safe-area-inset-bottom))]">
-        <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[18px] border border-[#F2E2CE] bg-white/92 shadow-[0_8px_22px_rgba(170,110,60,0.10)]">
-          <ColumnHeader />
-          {board.status === "loading" ? (
-            <ol aria-busy="true" aria-label="Loading leaderboard" className="min-h-0 flex-1 overflow-hidden">
-              {Array.from({ length: 7 }, (_, i) => (
-                <SkeletonRow key={i} />
-              ))}
-            </ol>
-          ) : board.status === "error" ? (
-            <BoardMessage title={t("loadFailed")} detail={board.message} onRetry={retry} />
-          ) : board.rows.length === 0 ? (
-            <BoardMessage title={t("emptyTitle")} detail={t("emptyDetail")} />
-          ) : (
-            <>
-              <ol
-                onScroll={onListScroll}
-                className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-              >
-                {board.rows.map((entry) => (
-                  <LeaderboardRow key={entry.userId} entry={entry} isMe={entry.userId === board.me?.userId} />
-                ))}
-                {loadingMore && <SkeletonRow />}
-              </ol>
-              {board.me && !board.rows.some((r) => r.userId === board.me?.userId) && (
-                <ul aria-label="Your rank" className="shrink-0 border-t border-[#F2D9BC] shadow-[0_-6px_14px_rgba(170,110,60,0.10)]">
-                  <LeaderboardRow entry={{ ...board.me, name: t("you") }} isMe />
-                </ul>
-              )}
-            </>
-          )}
-        </section>
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col px-[14px] pt-[4px] pb-[calc(16px+env(safe-area-inset-bottom))]">
+        <div className="mb-[10px] flex shrink-0 rounded-full bg-white p-[4px] shadow-[0_4px_12px_rgba(170,110,60,0.10)]">
+          <TabButton active={tab === "overall"} onClick={() => setTab("overall")} icon="trophy">
+            {t("leaderboard")}
+          </TabButton>
+          <TabButton active={tab === "daily"} onClick={() => setTab("daily")} icon="calendar">
+            {t("dailyWinnersTab")}
+          </TabButton>
+        </div>
 
-        <HowRankingWorks />
+        {tab === "overall" ? (
+          <>
+            <p className="mb-[8px] flex shrink-0 items-start gap-[6px] rounded-[12px] bg-[#FFF4E4] px-[10px] py-[8px] text-[11.5px] leading-[15px] font-semibold text-[#8A5A28]">
+              <span className="mt-[1px] flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded-full bg-[#EE7A2C] text-[10px] font-black text-white">
+                i
+              </span>
+              {t("overallBanner", { date: till })}
+            </p>
+            <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[18px] border border-[#F2E2CE] bg-white/92 shadow-[0_8px_22px_rgba(170,110,60,0.10)]">
+              <ColumnHeader />
+              {board.status === "loading" ? (
+                <ol aria-busy="true" aria-label="Loading leaderboard" className="min-h-0 flex-1 overflow-hidden">
+                  {Array.from({ length: 7 }, (_, i) => (
+                    <SkeletonRow key={i} />
+                  ))}
+                </ol>
+              ) : board.status === "error" ? (
+                <BoardMessage title={t("loadFailed")} detail={board.message} onRetry={retry} />
+              ) : board.rows.length === 0 ? (
+                <BoardMessage title={t("emptyTitle")} detail={t("emptyDetail")} />
+              ) : (
+                <>
+                  <ol
+                    onScroll={onListScroll}
+                    className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                  >
+                    {board.rows.map((entry) => (
+                      <LeaderboardRow key={entry.userId} entry={entry} isMe={entry.userId === board.me?.userId} />
+                    ))}
+                    {loadingMore && <SkeletonRow />}
+                  </ol>
+                  {board.me && !board.rows.some((r) => r.userId === board.me?.userId) && (
+                    <ul aria-label="Your rank" className="shrink-0 border-t border-[#F2D9BC] shadow-[0_-6px_14px_rgba(170,110,60,0.10)]">
+                      <LeaderboardRow entry={{ ...board.me, name: t("you") }} isMe />
+                    </ul>
+                  )}
+                </>
+              )}
+            </section>
+            <HowRankingWorks />
+          </>
+        ) : (
+          <DailyWinnersPanel board={daily.board} onRetry={daily.retry} />
+        )}
       </div>
     </div>
   );
@@ -351,6 +447,283 @@ function PrizeMedal({
       </text>
     </svg>
   );
+}
+
+function formatShortDate(iso: string, lang: string) {
+  const date = new Date(`${iso}T00:00:00+05:30`);
+  return date.toLocaleDateString(lang === "en" ? "en-IN" : lang, {
+    day: "numeric",
+    month: "short",
+    timeZone: "Asia/Kolkata",
+  });
+}
+
+function TabButton({
+  active,
+  onClick,
+  icon,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: "trophy" | "calendar";
+  children: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex h-[40px] flex-1 items-center justify-center gap-[6px] rounded-full text-[13px] font-bold active:scale-[0.99] ${
+        active ? "bg-[#EE6A2A] text-white shadow-[0_4px_10px_rgba(226,80,28,0.28)]" : "bg-transparent text-[#6B5344]"
+      }`}
+    >
+      {icon === "trophy" ? (
+        <svg viewBox="0 0 24 24" className="h-[16px] w-[16px]" fill="none" aria-hidden="true">
+          <path d="M8 5h8v4.2a4 4 0 0 1-8 0Z" stroke="currentColor" strokeWidth="1.8" />
+          <path d="M8 5.5H5.6c0 2.4 1.1 3.7 3 4.1M16 5.5h2.4c0 2.4-1.1 3.7-3 4.1" stroke="currentColor" strokeWidth="1.6" />
+          <path d="M10.2 13.2h3.6L14.2 18H9.8z" fill="currentColor" />
+        </svg>
+      ) : (
+        <svg viewBox="0 0 24 24" className="h-[16px] w-[16px]" fill="none" aria-hidden="true">
+          <rect x="3.5" y="5" width="17" height="15" rx="2.4" stroke="currentColor" strokeWidth="1.8" />
+          <path d="M3.5 9.4h17M8 3.6v3.2M16 3.6v3.2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        </svg>
+      )}
+      {children}
+    </button>
+  );
+}
+
+function DailyWinnersPanel({ board, onRetry }: { board: DailyBoard; onRetry: () => void }) {
+  const { t, lang } = useI18n();
+  return (
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="shrink-0 px-[8px] pt-[2px] pb-[10px] text-center">
+        <p className="flex items-center justify-center gap-[6px] text-[18px] leading-[22px] font-black text-[#C45A12]">
+          <img src="/quiz/trophy-gold.png" alt="" className="h-[22px] w-[22px] object-contain" />
+          {t("dailyWinnersTab")}
+          <Sparkles />
+        </p>
+        <p className="mt-[6px] flex flex-wrap items-center justify-center gap-x-[6px] gap-y-[4px] text-[13px] leading-[17px] font-semibold text-[#6B5344]">
+          <span>{t("dailyWinnersHeadline")}</span>
+          <span className="inline-flex items-center rounded-full bg-[#E31B70] px-[10px] py-[3px] text-[13px] leading-[16px] font-black tracking-[-0.02em] text-white shadow-[0_2px_6px_rgba(200,20,90,0.28)]">
+            ₹1,000
+          </span>
+        </p>
+      </div>
+      {board.status === "loading" ? (
+        <div className="flex min-h-0 flex-1 flex-col gap-[10px] overflow-hidden pb-[72px]">
+          {Array.from({ length: 3 }, (_, i) => (
+            <div key={i} className="h-[84px] animate-pulse rounded-[18px] bg-white/80" />
+          ))}
+        </div>
+      ) : board.status === "error" ? (
+        <BoardMessage title={t("loadFailed")} detail={board.message} onRetry={onRetry} />
+      ) : board.rows.length === 0 ? (
+        <BoardMessage title={t("dailyWinnersEmpty")} detail={t("dailyWinnersEmptyDetail")} />
+      ) : (
+        <ul className="flex min-h-0 flex-1 flex-col gap-[10px] overflow-y-auto pb-[72px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {board.rows.map((row, i) => (
+            <DailyWinnerCard key={row.day} row={row} lang={lang} featured={i === 0} />
+          ))}
+        </ul>
+      )}
+      <DailyWinnersFooter />
+    </div>
+  );
+}
+
+function Sparkles() {
+  return (
+    <svg viewBox="0 0 18 16" className="h-[16px] w-[18px]" aria-hidden="true">
+      <path d="M6.2 1.2l.9 2.4 2.4.9-2.4.9-.9 2.4-.9-2.4-2.4-.9 2.4-.9Z" fill="#F0C24A" />
+      <path d="M13.4 6.2l.7 1.7 1.7.6-1.7.6-.7 1.7-.6-1.7-1.7-.6 1.7-.6Z" fill="#E8A83A" />
+    </svg>
+  );
+}
+
+function DailyWinnersFooter() {
+  return (
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[100px] w-full overflow-hidden">
+      <svg viewBox="0 0 390 132" className="absolute inset-0 h-full w-full" aria-hidden="true" preserveAspectRatio="xMidYMax meet">
+        <defs>
+          <radialGradient id="dw-glow" cx="50%" cy="42%" r="38%">
+            <stop offset="0" stopColor="#FFE9A3" stopOpacity="0.95" />
+            <stop offset="0.45" stopColor="#F7D56A" stopOpacity="0.28" />
+            <stop offset="1" stopColor="#F7D56A" stopOpacity="0" />
+          </radialGradient>
+        </defs>
+        <ellipse cx="195" cy="58" rx="70" ry="48" fill="url(#dw-glow)" />
+        <FireworkSpark cx={52} cy={48} r={22} />
+        <FireworkSpark cx={88} cy={72} r={11} />
+        <FireworkSpark cx={338} cy={46} r={22} />
+        <FireworkSpark cx={302} cy={74} r={11} />
+        <g transform="translate(78 92)">{marigoldRow("left")}</g>
+        <g transform="translate(248 92)">{marigoldRow("right")}</g>
+      </svg>
+      <img
+        src="/quiz/diya-copper.png"
+        alt=""
+        draggable={false}
+        className="absolute bottom-[4px] left-1/2 h-[72px] w-[72px] -translate-x-1/2 object-contain drop-shadow-[0_8px_12px_rgba(160,80,20,0.28)] select-none"
+      />
+    </div>
+  );
+}
+
+function FireworkSpark({ cx, cy, r }: { cx: number; cy: number; r: number }) {
+  const rays = 16;
+  return (
+    <g>
+      {Array.from({ length: rays }, (_, i) => {
+        const angle = (i * Math.PI) / (rays / 2);
+        const inner = i % 2 ? r * 0.32 : r * 0.22;
+        const outer = i % 2 ? r * 0.78 : r;
+        return (
+          <line
+            key={i}
+            x1={(cx + Math.cos(angle) * inner).toFixed(2)}
+            y1={(cy + Math.sin(angle) * inner).toFixed(2)}
+            x2={(cx + Math.cos(angle) * outer).toFixed(2)}
+            y2={(cy + Math.sin(angle) * outer).toFixed(2)}
+            stroke={i % 2 ? "#E8C15A" : "#D4A017"}
+            strokeWidth={i % 2 ? 1.1 : 1.4}
+            strokeLinecap="round"
+            opacity="0.9"
+          />
+        );
+      })}
+      <circle cx={cx} cy={cy} r={r * 0.12} fill="#F8E7A0" />
+    </g>
+  );
+}
+
+function marigoldRow(side: "left" | "right") {
+  const dir = side === "left" ? -1 : 1;
+  const flowers = [
+    { x: 18, y: 2, s: 1 },
+    { x: 38, y: 6, s: 0.82 },
+    { x: 54, y: 10, s: 0.62 },
+  ];
+  const dots = [70, 82, 92, 102, 112];
+  return (
+    <>
+      {flowers.map((f) => (
+        <g key={f.x} transform={`translate(${dir * f.x} ${f.y}) scale(${f.s})`}>
+          <Marigold />
+        </g>
+      ))}
+      {dots.map((x, i) => (
+        <circle
+          key={x}
+          cx={dir * x}
+          cy={14 + i * 0.4}
+          r={Math.max(1.1, 3.2 - i * 0.45)}
+          fill="#E2A32A"
+          opacity={0.85 - i * 0.12}
+        />
+      ))}
+    </>
+  );
+}
+
+function Marigold() {
+  return (
+    <g>
+      {Array.from({ length: 10 }, (_, i) => {
+        const a = (i * Math.PI) / 5 - Math.PI / 2;
+        return (
+          <ellipse
+            key={i}
+            cx={(Math.cos(a) * 7).toFixed(2)}
+            cy={(Math.sin(a) * 6.2).toFixed(2)}
+            rx="4.4"
+            ry="2.6"
+            transform={`rotate(${(a * 180) / Math.PI} ${Math.cos(a) * 7} ${Math.sin(a) * 6.2})`}
+            fill={i % 2 ? "#F0B430" : "#E89420"}
+          />
+        );
+      })}
+      <circle r="3.2" fill="#F6D056" />
+      <circle r="1.5" fill="#C86A12" />
+    </g>
+  );
+}
+
+function DailyWinnerCard({ row, lang, featured = false }: { row: DailyRow; lang: string; featured?: boolean }) {
+  const stamp = formatCardDate(row.date, lang);
+  const winner = row.winner;
+  const place = winner ? [winner.district, winner.state].filter(Boolean).join(", ") : "";
+  return (
+    <li
+      className={`flex list-none items-center gap-[8px] overflow-visible rounded-[16px] border px-[12px] py-[10px] shadow-[0_4px_12px_rgba(175,95,35,0.08)] ${
+        featured
+          ? "border-[#F6E2B0] bg-[linear-gradient(180deg,#FFF8DC_0%,#FFF3C8_100%)]"
+          : "border-[#F0E4D2] bg-white"
+      }`}
+    >
+      <WinnerCalendar day={stamp.day} month={stamp.month} />
+      {winner ? (
+        <>
+          <PotatoAvatar seed={winner.userId} />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[15px] leading-[18px] font-extrabold text-[#1C2447]">{maskedName(winner)}</span>
+            {place ? <span className="mt-[2px] block truncate text-[12px] leading-[15px] text-[#8E8E98]">{place}</span> : null}
+          </span>
+          <WinnerWreath />
+        </>
+      ) : (
+        <span className="min-w-0 flex-1 text-[12px] leading-[16px] font-semibold text-[#8E8E98]">—</span>
+      )}
+    </li>
+  );
+}
+
+function WinnerCalendar({ day, month }: { day: string; month: string }) {
+  return (
+    <span className="relative mt-[2px] h-[56px] w-[48px] shrink-0">
+      <span className="absolute inset-x-0 top-[7px] bottom-0 flex flex-col overflow-hidden rounded-[11px] bg-white shadow-[0_3px_8px_rgba(50,30,20,0.16)]">
+        <span className="h-[12px] shrink-0 bg-[#E4453A]" />
+        <span className="flex min-h-0 flex-1 flex-col items-center justify-center pb-[4px]">
+          <span className="text-[17px] leading-[16px] font-black tracking-[-0.04em] text-[#1A1A2E]">{day}</span>
+          <span className="mt-[1px] text-[10px] leading-[10px] font-extrabold text-[#1A1A2E]">{month}</span>
+        </span>
+      </span>
+      <CalendarRing className="absolute top-[1px] left-[10px] z-10 h-[14px] w-[9px]" />
+      <CalendarRing className="absolute top-[1px] right-[10px] z-10 h-[14px] w-[9px]" />
+    </span>
+  );
+}
+
+function CalendarRing({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 9 14" className={className} aria-hidden="true">
+      <ellipse cx="4.5" cy="7.2" rx="2.75" ry="5.1" fill="none" stroke="#9E9EA4" strokeWidth="2.1" />
+      <ellipse cx="4.5" cy="6.8" rx="2.75" ry="5.1" fill="none" stroke="#EDEDEF" strokeWidth="1.35" />
+    </svg>
+  );
+}
+
+function WinnerWreath() {
+  return (
+    <img
+      src="/quiz/winner-wreath.png"
+      alt=""
+      width={70}
+      height={70}
+      className="-my-[6px] h-[70px] w-[70px] shrink-0 object-contain"
+      aria-hidden="true"
+    />
+  );
+}
+
+function formatCardDate(iso: string, lang: string) {
+  const date = new Date(`${iso}T00:00:00+05:30`);
+  const locale = lang === "en" ? "en-IN" : lang;
+  return {
+    day: date.toLocaleDateString(locale, { day: "numeric", timeZone: "Asia/Kolkata" }),
+    month: date.toLocaleDateString(locale, { month: "short", timeZone: "Asia/Kolkata" }).replace(".", ""),
+  };
 }
 
 /* ---------- Table ---------- */
@@ -489,7 +862,7 @@ function BoardMessage({ title, detail, onRetry }: { title: string; detail: strin
     <div role={onRetry ? "alert" : "status"} className="flex min-h-0 flex-1 flex-col items-center justify-center px-[24px] text-center">
       <img src="/quiz/potato-avatar.png" alt="" draggable={false} className="h-[64px] w-[64px] opacity-90" />
       <p className="mt-[10px] text-[15px] leading-[19px] font-bold text-[#1C2447]">{title}</p>
-      <p className="mt-[4px] text-[12px] leading-[16px] text-[#8E8E98]">{detail}</p>
+      <p className="mt-[4px] text-[12px] leading-[16px] whitespace-nowrap text-[#8E8E98]">{detail}</p>
       {onRetry && (
         <button
           type="button"
@@ -507,7 +880,7 @@ function BoardMessage({ title, detail, onRetry }: { title: string; detail: strin
 
 function HowRankingWorks() {
   const { t } = useI18n();
-  const rules = [t("rankRule1"), t("rankRule2"), t("rankRule3")];
+  const rules = [t("rankRule1"), t("rankRule2"), t("rankRule3"), t("rankRule4")];
   return (
     <section
       id="how-ranking-works"

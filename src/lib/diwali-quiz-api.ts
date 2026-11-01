@@ -191,7 +191,10 @@ export type LeaderboardPage = {
   > | null;
 };
 
-/** Overall standings. `day` is deliberately never sent: the app shows cumulative totals only. */
-export function fetchLeaderboard(page = 1, perPage = 50) {
-  return request<LeaderboardPage>(`/leaderboard?page=${page}&perPage=${perPage}`);
+/** Overall standings, or one contest day's ranking when `day` is set. */
+export function fetchLeaderboard(page = 1, perPage = 50, day?: number, date?: string) {
+  const query = new URLSearchParams({ page: String(page), perPage: String(perPage) });
+  if (day && day >= 1) query.set("day", String(day));
+  if (date) query.set("date", date);
+  return request<LeaderboardPage>(`/leaderboard?${query.toString()}`);
 }

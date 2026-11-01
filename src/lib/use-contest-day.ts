@@ -5,6 +5,7 @@ import { QUESTION_BANK } from "@/data/question-bank";
 import {
   ENDED,
   NOT_LIVE,
+  clearAttempt,
   isSubmittedToday,
   resolveContestDay,
   type ContestDayNumber,
@@ -21,10 +22,13 @@ export type ContestState = {
 };
 
 function playedOnServer(day: ContestDayNumber, contest: QuizContest, player: QuizPlayerStatus | null | undefined) {
-  if (day < 1 || !player?.hasAttemptedToday || contest.playableDay !== day) return false;
+  if (day < 1 || contest.playableDay !== day || !player) return false;
+  // Backend says this person can still take today's quiz (never saved, or save failed).
+  if (player.canPlayToday) return false;
+  if (!player.hasAttemptedToday) return false;
   // Only an attempt finished today hides Start Quiz. A previous day must show Start again.
   if (player.attemptedAt) return isSubmittedToday(player.attemptedAt);
-  return false;
+  return true;
 }
 
 function dayFromServer(contest: QuizContest): ContestDayNumber {
@@ -50,7 +54,9 @@ export function useContestDay(): ContestState | null {
     const load: Promise<ContestState> = fetchQuizStatus()
       .then(({ contest, player }) => {
         const day = dayFromServer(contest);
-        return { day, contest, playedToday: playedOnServer(day, contest, player) };
+        const playedToday = playedOnServer(day, contest, player);
+        if (day >= 1 && !playedToday) clearAttempt(day);
+        return { day, contest, playedToday };
       })
       .catch(() => ({ day: resolveContestDay(), contest: null, playedToday: false }));
     void load.then((next) => {

@@ -134,7 +134,7 @@ function DayQuiz({ quiz, alreadyPlayed }: { quiz: QuizDay; alreadyPlayed: boolea
   const total = quiz.questions.length;
   // An attempt already stored when this screen opens means this day is finished.
   // Coming back into the quiz must not deal the questions again.
-  const openedDone = useRef(playedTodayLocally(quiz.day) || alreadyPlayed);
+  const openedDone = useRef(alreadyPlayed || playedTodayLocally(quiz.day));
   useEffect(() => {
     if (openedDone.current) router.replace("/");
   }, [router]);

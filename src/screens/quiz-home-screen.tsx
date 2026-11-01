@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { QUESTION_BANK } from "@/data/question-bank";
-import { playedTodayLocally, resolveContestDay } from "@/lib/contest";
+import { clearAttempt, loadAttempt, playedTodayLocally, resolveContestDay } from "@/lib/contest";
 import { useI18n } from "@/components/language-provider";
 import { postToNative } from "@/lib/native-bridge";
 import { useContestDay } from "@/lib/use-contest-day";
@@ -55,10 +55,9 @@ export function QuizHomeScreen({ completed = false }: { completed?: boolean }) {
   const isLastDay = day !== null && day >= QUESTION_BANK.length;
   const savedToday = day !== null && day >= 1 && playedTodayLocally(day);
   const ready = day !== null;
-  const playedToday = savedToday || (contestState?.playedToday ?? false);
-  // Right after the quiz, `/completed` shows this screen before the day check returns.
-  // Once the day is known, only a real attempt for that day keeps Start Quiz hidden.
-  const done = playedToday || (completed && !ready);
+  // Prefer the server: if today's attempt is not on the leaderboard, show Start Quiz again.
+  const playedToday = contestState?.contest ? contestState.playedToday : savedToday;
+  const done = playedToday || (completed && contestState === null);
   const frameRef = useRef<HTMLDivElement>(null);
   const boardRef = useRef<HTMLDivElement>(null);
 
@@ -245,6 +244,7 @@ export function QuizHomeScreen({ completed = false }: { completed?: boolean }) {
               postToNative({ type: "QUIZ_LEADERBOARD" });
               router.push("/leaderboard");
             } else {
+              if (day !== null && day >= 1 && loadAttempt(day)?.synced !== true) clearAttempt(day);
               postToNative({ type: "QUIZ_START" });
               router.push("/play");
             }

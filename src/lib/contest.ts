@@ -25,6 +25,46 @@ function indiaDate(now: Date) {
   }).format(now);
 }
 
+/** Today's calendar date in India (`YYYY-MM-DD`). */
+export function indiaToday(now = new Date()) {
+  return indiaDate(now);
+}
+
+/**
+ * Contest days whose winner is locked: after 12:00 AM IST the next morning.
+ * Day 1's #1 appears on the Daily Winners list starting Day 2 at midnight.
+ */
+export function completedWinnerDays(now = new Date()): QuizDay[] {
+  const today = indiaDate(now);
+  return QUESTION_BANK.filter((d) => d.date < today);
+}
+
+/**
+ * Oldest day first: the day's top player wins, then they are skipped on later days
+ * so one user cannot take more than one daily prize.
+ */
+export function assignUniqueDailyWinners<T extends { userId: number }>(
+  days: { day: number; date: string }[],
+  rankedByDay: T[][],
+): { day: number; date: string; winner: T | null }[] {
+  const won = new Set<number>();
+  return days.map((quiz, i) => {
+    const winner = (rankedByDay[i] ?? []).find((row) => Number.isFinite(row.userId) && !won.has(row.userId)) ?? null;
+    if (winner) won.add(winner.userId);
+    return { day: quiz.day, date: quiz.date, winner };
+  });
+}
+
+/** Milliseconds until the next 12:00 AM in India. */
+export function msUntilIndiaMidnight(now = new Date()) {
+  const today = indiaDate(now);
+  const [year, month, day] = today.split("-").map(Number);
+  const nextMidnightUtc = Date.UTC(year, month - 1, day, 18, 30, 0);
+  let wait = nextMidnightUtc - now.getTime();
+  if (wait < 1_000) wait += 24 * 60 * 60 * 1000;
+  return wait;
+}
+
 export function contestDayFor(now: Date): ContestDayNumber {
   const today = indiaDate(now);
   if (today < CONTEST_START) return UPCOMING;
@@ -84,10 +124,13 @@ export function isSubmittedToday(submittedAt?: string | null): boolean {
   return indiaDate(played) === indiaDate(new Date());
 }
 
-/** A saved attempt only blocks Start Quiz on the calendar day it was finished. */
+/**
+ * Blocks Start Quiz only when today's attempt actually reached the backend
+ * (and so the leaderboard). A local draft from a failed/partial play must not lock the day.
+ */
 export function playedTodayLocally(day: number): boolean {
   const attempt = loadAttempt(day);
-  return attempt !== null && isSubmittedToday(attempt.submittedAt);
+  return attempt !== null && attempt.synced === true && isSubmittedToday(attempt.submittedAt);
 }
 
 const attemptKey = (day: number) => `pb-diwali-quiz:day-${day}`;
@@ -110,6 +153,15 @@ export function saveAttempt(attempt: SubmittedAttempt) {
     window.localStorage.setItem(attemptKey(attempt.day), JSON.stringify(attempt));
   } catch {
     // Storage can be unavailable in some WebViews; the host app still receives QUIZ_COMPLETE.
+  }
+}
+
+/** Drop a local attempt that never made it to the leaderboard so Start Quiz can run again. */
+export function clearAttempt(day: number) {
+  try {
+    window.localStorage.removeItem(attemptKey(day));
+  } catch {
+    /* ignore */
   }
 }
 
