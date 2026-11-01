@@ -17,6 +17,16 @@ export const ENDED = -1;
 export const NOT_LIVE = -2;
 
 function indiaDate(now: Date) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: CONTEST_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+  if (year && month && day) return `${year}-${month}-${day}`;
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: CONTEST_TIME_ZONE,
     year: "numeric",
@@ -34,9 +44,13 @@ export function indiaToday(now = new Date()) {
  * Contest days whose winner is locked: after 12:00 AM IST the next morning.
  * Day 1's #1 appears on the Daily Winners list starting Day 2 at midnight.
  */
-export function completedWinnerDays(now = new Date()): QuizDay[] {
+export function completedWinnerDays(now = new Date(), playableDay?: number | null): QuizDay[] {
   const today = indiaDate(now);
-  return QUESTION_BANK.filter((d) => d.date < today);
+  return QUESTION_BANK.filter((quiz) => {
+    if (quiz.date < today) return true;
+    if (typeof playableDay === "number" && playableDay >= 1 && quiz.day < playableDay) return true;
+    return false;
+  });
 }
 
 /**

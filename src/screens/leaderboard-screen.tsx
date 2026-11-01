@@ -4,7 +4,14 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type CSSProperties, type UIEvent } from "react";
 import { QUESTION_BANK } from "@/data/question-bank";
 import { assignUniqueDailyWinners, completedWinnerDays, indiaToday, msUntilIndiaMidnight } from "@/lib/contest";
-import { QuizApiError, fetchLeaderboard, type LeaderboardEntry, type LeaderboardPage } from "@/lib/diwali-quiz-api";
+import {
+  QuizApiError,
+  fetchDayLeaderboard,
+  fetchLeaderboard,
+  fetchQuizStatus,
+  type LeaderboardEntry,
+  type LeaderboardPage,
+} from "@/lib/diwali-quiz-api";
 import { useI18n } from "@/components/language-provider";
 import { postToNative } from "@/lib/native-bridge";
 import { getSession } from "@/lib/session";
@@ -153,7 +160,7 @@ type DailyRow = { day: number; date: string; winner: LeaderboardEntry | null };
 type DailyBoard =
   | { status: "loading" }
   | { status: "error"; message: string }
-  | { status: "ready"; rows: DailyRow[] };
+  | { status: "ready"; rows: DailyRow[]; lockedDays: number };
 
 function useDailyWinners() {
   const [board, setBoard] = useState<DailyBoard>({ status: "loading" });
@@ -163,26 +170,32 @@ function useDailyWinners() {
     let cancelled = false;
 
     async function load() {
-      const days = completedWinnerDays();
+      let playableDay: number | null = null;
+      try {
+        const status = await fetchQuizStatus();
+        playableDay = status.contest.playableDay ?? status.contest.contestDay;
+      } catch {
+        playableDay = null;
+      }
+      const days = completedWinnerDays(new Date(), playableDay);
       if (days.length === 0) {
-        if (!cancelled) setBoard({ status: "ready", rows: [] });
+        if (!cancelled) setBoard({ status: "ready", rows: [], lockedDays: 0 });
         return;
       }
       try {
-        const rankedByDay = await Promise.all(
-          days.map((quiz) =>
-            fetchLeaderboard(1, 50, quiz.day, quiz.date)
-              .then((data) => data.leaderboard)
-              .catch(() => [] as LeaderboardEntry[]),
-          ),
-        );
+        let rankedByDay = await Promise.all(days.map((quiz) => fetchDayLeaderboard(quiz.day, quiz.date)));
+        if (rankedByDay.every((list) => list.length === 0) && days.length === 1) {
+          try {
+            rankedByDay = [(await fetchLeaderboard(1, 100)).leaderboard];
+          } catch {
+            /* keep empty day lists */
+          }
+        }
         if (cancelled) return;
-        setBoard({
-          status: "ready",
-          rows: assignUniqueDailyWinners(days, rankedByDay)
-            .filter((row) => row.winner)
-            .reverse(),
-        });
+        const rows = assignUniqueDailyWinners(days, rankedByDay)
+          .filter((row) => row.winner)
+          .reverse();
+        setBoard({ status: "ready", rows, lockedDays: days.length });
       } catch (error: unknown) {
         if (!cancelled) setBoard({ status: "error", message: errorMessage(error) });
       }
@@ -519,6 +532,8 @@ function DailyWinnersPanel({ board, onRetry }: { board: DailyBoard; onRetry: () 
         </div>
       ) : board.status === "error" ? (
         <BoardMessage title={t("loadFailed")} detail={board.message} onRetry={onRetry} />
+      ) : board.rows.length === 0 && board.lockedDays > 0 ? (
+        <BoardMessage title={t("loadFailed")} detail={t("dailyWinnersEmptyDetail")} onRetry={onRetry} />
       ) : board.rows.length === 0 ? (
         <BoardMessage title={t("dailyWinnersEmpty")} detail={t("dailyWinnersEmptyDetail")} />
       ) : (

@@ -234,9 +234,44 @@ export type LeaderboardPage = {
 };
 
 /** Overall standings, or one contest day's ranking when `day` is set. */
-export function fetchLeaderboard(page = 1, perPage = 50, day?: number, date?: string) {
+export function fetchLeaderboard(page = 1, perPage = 50, day?: number, extra?: Record<string, string>) {
   const query = new URLSearchParams({ page: String(page), perPage: String(perPage) });
   if (day && day >= 1) query.set("day", String(day));
-  if (date) query.set("date", date);
+  if (extra) {
+    for (const [key, value] of Object.entries(extra)) {
+      if (value) query.set(key, value);
+    }
+  }
   return request<LeaderboardPage>(`/leaderboard?${query.toString()}`);
+}
+
+function asUserId(value: unknown) {
+  const id = typeof value === "string" && value.trim() ? Number(value) : Number(value);
+  return Number.isFinite(id) && id > 0 ? id : null;
+}
+
+/** Ranked players for one contest day. Tries `day`, then `date`, then `contestDay`. */
+export async function fetchDayLeaderboard(day: number, date: string): Promise<LeaderboardEntry[]> {
+  const tries: Array<() => Promise<LeaderboardPage>> = [
+    () => fetchLeaderboard(1, 100, day),
+    () => fetchLeaderboard(1, 100, undefined, { date }),
+    () => fetchLeaderboard(1, 100, undefined, { contestDay: String(day) }),
+  ];
+  let lastEmpty: LeaderboardEntry[] = [];
+  for (const run of tries) {
+    try {
+      const page = await run();
+      const rows = (page.leaderboard ?? [])
+        .map((row) => {
+          const userId = asUserId(row.userId) ?? asUserId((row as unknown as { user_id?: unknown }).user_id);
+          return userId ? { ...row, userId } : null;
+        })
+        .filter((row): row is LeaderboardEntry => row !== null);
+      if (rows.length > 0) return rows;
+      lastEmpty = rows;
+    } catch {
+      // Next query shape — unknown `date` on the overall endpoint 400s on some backends.
+    }
+  }
+  return lastEmpty;
 }
