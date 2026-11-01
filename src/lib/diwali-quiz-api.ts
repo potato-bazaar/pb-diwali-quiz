@@ -45,6 +45,19 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 function apiErrorMessage(body: { message?: unknown; error?: unknown; errors?: unknown } | null, status: number) {
   if (body && typeof body.message === "string" && body.message.trim()) return body.message;
   if (body && typeof body.error === "string" && body.error.trim()) return body.error;
+  const errors = body?.errors;
+  if (Array.isArray(errors) && errors.length) {
+    const parts = errors.map((item) => {
+      if (typeof item === "string") return item;
+      if (item && typeof item === "object") {
+        const rec = item as { msg?: unknown; message?: unknown };
+        if (typeof rec.msg === "string") return rec.msg;
+        if (typeof rec.message === "string") return rec.message;
+      }
+      return "";
+    }).filter(Boolean);
+    if (parts.length) return parts.join(" ");
+  }
   return status === 400 ? "Could not save this quiz. Please try again." : `Request failed (${status}).`;
 }
 
@@ -160,7 +173,11 @@ export type PlayerSummary = {
 };
 
 export async function submitAttempt(body: SubmitAttemptBody) {
-  const answers = body.answers.map(({ questionId, option }) => ({ questionId, option }));
+  const answers = body.answers.map(({ questionId, option, correct }) => ({
+    questionId,
+    option,
+    correct: Boolean(correct),
+  }));
   const payload = {
     day: body.day,
     answers,
@@ -174,7 +191,6 @@ export async function submitAttempt(body: SubmitAttemptBody) {
     });
   } catch (error) {
     if (isAlreadyAttempted(error)) throw error;
-    // Strict backends 400 on unexpected fields — retry the documented shape only.
     if (error instanceof QuizApiError && error.status === 400) {
       return request<{ attempt: ServerAttempt; player: PlayerSummary }>("/attempts", {
         method: "POST",
