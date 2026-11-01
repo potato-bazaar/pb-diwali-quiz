@@ -237,37 +237,37 @@ export function QuizHomeScreen({ completed = false }: { completed?: boolean }) {
       <footer className="relative z-10 flex w-full shrink-0 flex-col px-[clamp(16px,6vw,26px)] pt-[10px] pb-[max(28px,calc(env(safe-area-inset-bottom)+18px))]">
 
         {ready || completed ? (
-        <button
-          type="button"
-          onClick={() => {
-            if (done) {
-              postToNative({ type: "QUIZ_LEADERBOARD" });
-              router.push("/leaderboard");
-            } else {
-              if (day !== null && day >= 1 && loadAttempt(day)?.synced !== true) clearAttempt(day);
-              postToNative({ type: "QUIZ_START" });
-              router.push("/play");
-            }
-          }}
-          className="relative flex h-[52px] w-full items-center justify-center gap-[12px] rounded-full bg-gradient-to-r from-[#F2742C] via-[#EC5F24] to-[#E2461C] text-[18px] font-bold text-white shadow-[0_12px_26px_rgba(226,80,28,0.38)] active:scale-[0.98]"
-        >
-          <span className="pointer-events-none absolute top-1/2 left-[8px] flex h-[56px] w-[56px] -translate-y-1/2 items-center justify-center rounded-full bg-[radial-gradient(circle,rgba(255,226,160,0.55)_0%,rgba(255,200,120,0.18)_45%,rgba(255,200,120,0)_70%)]">
-            <img
-              src="/quiz/sparkler.png"
-              alt=""
-              draggable={false}
-              className="h-[52px] w-[52px] object-contain select-none [filter:brightness(1.5)_saturate(1.2)_drop-shadow(0_0_4px_rgba(255,236,170,0.95))]"
+          done ? (
+            <HomeCta
+              label={t("viewLeaderboard")}
+              onClick={() => {
+                postToNative({ type: "QUIZ_LEADERBOARD" });
+                router.push("/leaderboard");
+              }}
             />
-          </span>
-          <span>{done ? t("viewLeaderboard") : t("startQuiz")}</span>
-          <ArrowIcon className="h-[20px] w-[20px]" />
-          <img
-            src="/quiz/diya.png"
-            alt=""
-            draggable={false}
-            className="pointer-events-none absolute right-[6px] bottom-[-18px] h-[48px] w-[48px] object-contain select-none drop-shadow-[0_6px_8px_rgba(120,40,10,0.35)]"
-          />
-        </button>
+          ) : (
+            <div className="flex w-full flex-col gap-[8px]">
+              <HomeCta
+                label={t("startQuiz")}
+                onClick={() => {
+                  if (day !== null && day >= 1 && loadAttempt(day)?.synced !== true) clearAttempt(day);
+                  postToNative({ type: "QUIZ_START" });
+                  router.push("/play");
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  postToNative({ type: "QUIZ_LEADERBOARD" });
+                  router.push("/leaderboard");
+                }}
+                className="flex h-[44px] w-full items-center justify-center gap-[8px] rounded-full border-2 border-[#E2551F] bg-white text-[15px] font-bold text-[#E2551F] shadow-[0_4px_12px_rgba(226,80,28,0.10)] active:scale-[0.98]"
+              >
+                {t("viewLeaderboard")}
+                <ArrowIcon className="h-[16px] w-[16px] text-[#E2551F]" />
+              </button>
+            </div>
+          )
         ) : (
           <div className="h-[52px]" />
         )}
@@ -451,10 +451,37 @@ function Petal({ style }: { style: CSSProperties }) {
   );
 }
 
+function HomeCta({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="relative flex h-[52px] w-full items-center justify-center gap-[12px] rounded-full bg-gradient-to-r from-[#F2742C] via-[#EC5F24] to-[#E2461C] text-[18px] font-bold text-white shadow-[0_12px_26px_rgba(226,80,28,0.38)] active:scale-[0.98]"
+    >
+      <span className="pointer-events-none absolute top-1/2 left-[8px] flex h-[56px] w-[56px] -translate-y-1/2 items-center justify-center rounded-full bg-[radial-gradient(circle,rgba(255,226,160,0.55)_0%,rgba(255,200,120,0.18)_45%,rgba(255,200,120,0)_70%)]">
+        <img
+          src="/quiz/sparkler.png"
+          alt=""
+          draggable={false}
+          className="h-[52px] w-[52px] object-contain select-none [filter:brightness(1.5)_saturate(1.2)_drop-shadow(0_0_4px_rgba(255,236,170,0.95))]"
+        />
+      </span>
+      <span>{label}</span>
+      <ArrowIcon className="h-[20px] w-[20px]" />
+      <img
+        src="/quiz/diya.png"
+        alt=""
+        draggable={false}
+        className="pointer-events-none absolute right-[6px] bottom-[-18px] h-[48px] w-[48px] object-contain select-none drop-shadow-[0_6px_8px_rgba(120,40,10,0.35)]"
+      />
+    </button>
+  );
+}
+
 function ArrowIcon({ className }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" className={className} fill="none" aria-hidden="true">
-      <path d="M4 12h15M13 6l6 6-6 6" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M4 12h15M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
