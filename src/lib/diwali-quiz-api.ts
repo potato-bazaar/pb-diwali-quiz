@@ -1,5 +1,5 @@
 import type { OptionLetter } from "@/data/question-bank";
-import { getSession } from "@/lib/session";
+import { applyProfileToSession, getSession, waitForSessionToken } from "@/lib/session";
 
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || "https://api.potatobazaar.com/api/").replace(/\/?$/, "/");
 const QUIZ_API = `${API_BASE_URL}diwali-quiz`;
@@ -17,7 +17,7 @@ export class QuizApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const { token } = getSession();
+  const token = getSession().token || (await waitForSessionToken());
   if (!token) throw new QuizApiError("Login token missing. Open the quiz from the Potato Bazaar app.", 401, "NO_TOKEN");
 
   let response: Response;
@@ -74,7 +74,7 @@ export type QuizPlayerStatus = {
 
 /** Language saved on the user's profile. The quiz follows this when the URL did not send one. */
 export async function fetchProfileLanguage(): Promise<string | null> {
-  const { token } = getSession();
+  const token = getSession().token || (await waitForSessionToken(1500));
   if (!token) return null;
   try {
     const response = await fetch(`${API_BASE_URL}user-profile`, {
@@ -82,7 +82,8 @@ export async function fetchProfileLanguage(): Promise<string | null> {
     });
     if (!response.ok) return null;
     const body = await response.json();
-    const user = body?.userData ?? body?.data ?? body;
+    const user = (body?.userData ?? body?.data ?? body) as Record<string, unknown> | null;
+    if (user && typeof user === "object") applyProfileToSession(user);
     const code = user?.language ?? user?.preferredLanguage ?? user?.appLanguage;
     return typeof code === "string" ? code : null;
   } catch {
@@ -92,7 +93,7 @@ export async function fetchProfileLanguage(): Promise<string | null> {
 
 /** Contest status. A login token adds this player's attempts; without one, only the live switch comes back. */
 export async function fetchQuizStatus() {
-  const { token } = getSession();
+  const token = getSession().token || (await waitForSessionToken(1500));
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
 
@@ -147,9 +148,14 @@ export type PlayerSummary = {
 };
 
 export function submitAttempt(body: SubmitAttemptBody) {
+  const session = getSession();
   return request<{ attempt: ServerAttempt; player: PlayerSummary }>("/attempts", {
     method: "POST",
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      ...body,
+      ...(session.userId ? { userId: Number(session.userId) || session.userId } : {}),
+      ...(session.userName ? { name: session.userName, userName: session.userName } : {}),
+    }),
   });
 }
 

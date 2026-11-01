@@ -6,6 +6,7 @@ import { QUESTION_BANK } from "@/data/question-bank";
 import { QuizApiError, fetchLeaderboard, type LeaderboardEntry, type LeaderboardPage } from "@/lib/diwali-quiz-api";
 import { useI18n } from "@/components/language-provider";
 import { postToNative } from "@/lib/native-bridge";
+import { getSession } from "@/lib/session";
 
 const TOTAL_DAYS = QUESTION_BANK.length;
 const PER_PAGE = 50;
@@ -398,7 +399,11 @@ const RANK_MEDAL_KIND: Record<number, MedalKind> = {
 
 /** Leaderboards show masked identities: first name plus last-name initial ("Ansh K."). */
 function maskedName(entry: LeaderboardEntry) {
-  const full = entry.name?.trim() || [entry.firstName, entry.lastName].filter(Boolean).join(" ").trim();
+  const sessionName = String(entry.userId) === getSession().userId ? getSession().userName : "";
+  const full =
+    entry.name?.trim() ||
+    [entry.firstName, entry.lastName].filter(Boolean).join(" ").trim() ||
+    sessionName.trim();
   const words = full.split(/\s+/).filter(Boolean);
   if (words.length === 0) return "Potato Player";
   if (words.length === 1) return words[0];
