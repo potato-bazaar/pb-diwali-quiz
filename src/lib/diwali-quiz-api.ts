@@ -33,13 +33,25 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const body = await response.json().catch(() => null);
   if (!response.ok || body?.success === false) {
     throw new QuizApiError(
-      body?.message || `Request failed (${response.status}).`,
+      apiErrorMessage(body, response.status),
       response.status,
       body?.code || (response.status === 401 ? "UNAUTHORIZED" : "REQUEST_FAILED"),
       body?.data,
     );
   }
   return body.data as T;
+}
+
+function apiErrorMessage(body: { message?: unknown; error?: unknown; errors?: unknown } | null, status: number) {
+  if (body && typeof body.message === "string" && body.message.trim()) return body.message;
+  if (body && typeof body.error === "string" && body.error.trim()) return body.error;
+  return status === 400 ? "Could not save this quiz. Please try again." : `Request failed (${status}).`;
+}
+
+function isAlreadyAttempted(error: unknown) {
+  if (!(error instanceof QuizApiError)) return false;
+  if (error.code === "ALREADY_ATTEMPTED" || error.status === 409) return true;
+  return error.status === 400 && /already/i.test(error.message);
 }
 
 /* ---------- GET /status ---------- */
@@ -147,16 +159,30 @@ export type PlayerSummary = {
   remainingDays: number[];
 };
 
-export function submitAttempt(body: SubmitAttemptBody) {
-  const session = getSession();
-  return request<{ attempt: ServerAttempt; player: PlayerSummary }>("/attempts", {
-    method: "POST",
-    body: JSON.stringify({
-      ...body,
-      ...(session.userId ? { userId: Number(session.userId) || session.userId } : {}),
-      ...(session.userName ? { name: session.userName, userName: session.userName } : {}),
-    }),
-  });
+export async function submitAttempt(body: SubmitAttemptBody) {
+  const answers = body.answers.map(({ questionId, option }) => ({ questionId, option }));
+  const payload = {
+    day: body.day,
+    answers,
+    ...(body.submittedAt ? { submittedAt: body.submittedAt } : {}),
+    ...(typeof body.durationSeconds === "number" ? { durationSeconds: body.durationSeconds } : {}),
+  };
+  try {
+    return await request<{ attempt: ServerAttempt; player: PlayerSummary }>("/attempts", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  } catch (error) {
+    if (isAlreadyAttempted(error)) throw error;
+    // Strict backends 400 on unexpected fields — retry the documented shape only.
+    if (error instanceof QuizApiError && error.status === 400) {
+      return request<{ attempt: ServerAttempt; player: PlayerSummary }>("/attempts", {
+        method: "POST",
+        body: JSON.stringify({ day: body.day, answers }),
+      });
+    }
+    throw error;
+  }
 }
 
 /* ---------- GET /leaderboard ---------- */

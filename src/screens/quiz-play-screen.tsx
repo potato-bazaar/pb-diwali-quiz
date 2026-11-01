@@ -190,7 +190,10 @@ function DayQuiz({ quiz, alreadyPlayed }: { quiz: QuizDay; alreadyPlayed: boolea
       .then(({ attempt: server, player }) => markSynced(server, player.totalPoints))
       .catch((error: unknown) => {
         // The backend already has this day (e.g. played on another device): its record wins.
-        if (error instanceof QuizApiError && error.code === "ALREADY_ATTEMPTED") {
+        if (
+          error instanceof QuizApiError &&
+          (error.code === "ALREADY_ATTEMPTED" || error.status === 409 || (error.status === 400 && /already/i.test(error.message)))
+        ) {
           markSynced((error.data as { attempt?: ServerAttempt } | undefined)?.attempt ?? null, null);
           return;
         }
