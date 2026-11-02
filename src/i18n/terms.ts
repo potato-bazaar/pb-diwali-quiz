@@ -26,7 +26,7 @@ const en: TermsCopy = {
     {
       n: 2,
       title: "Eligibility",
-      body: "Participants must be registered on the Potato Bazaar app with a valid mobile number. One person may use only one account. Employees and team members directly involved in administering the contest are not eligible for prizes. Participation constitutes acceptance of these terms.",
+      body: "Participants must be registered on the Potato Bazaar app with a valid mobile number. One person may use only one account. Employees and team members directly involved in administering the contest are not eligible for prizes. Participation constitutes acceptance of these terms.\n\nThe Diwali Quiz is exclusively intended for individuals associated with the potato industry, including farmers, traders, cold storage operators, processors, exporters, and other related stakeholders. Potato Bazaar reserves the right to verify participants’ industry association and disqualify ineligible participants from receiving prizes.",
     },
     {
       n: 3,
@@ -113,7 +113,7 @@ const hi: TermsCopy = {
     {
       n: 2,
       title: "पात्रता",
-      body: "प्रतिभागी का Potato Bazaar ऐप पर वैध मोबाइल नंबर से पंजीकृत होना आवश्यक है। एक व्यक्ति केवल एक खाते से भाग ले सकता है। प्रतियोगिता के संचालन से सीधे जुड़े कर्मचारी और आयोजन टीम पुरस्कार के पात्र नहीं होंगे। भाग लेने का अर्थ इन नियमों की स्वीकृति है।",
+      body: "प्रतिभागी का Potato Bazaar ऐप पर वैध मोबाइल नंबर से पंजीकृत होना आवश्यक है। एक व्यक्ति केवल एक खाते से भाग ले सकता है। प्रतियोगिता के संचालन से सीधे जुड़े कर्मचारी और आयोजन टीम पुरस्कार के पात्र नहीं होंगे। भाग लेने का अर्थ इन नियमों की स्वीकृति है।\n\nदिवाली क्विज़ केवल आलू उद्योग से जुड़े व्यक्तियों के लिए है, जिनमें किसान, व्यापारी, कोल्ड स्टोरेज संचालक, प्रोसेसर, निर्यातक और अन्य संबंधित हितधारक शामिल हैं। Potato Bazaar प्रतिभागियों के उद्योग से संबंध की जाँच करने और पुरस्कार के लिए अपात्र प्रतिभागियों को अयोग्य घोषित करने का अधिकार सुरक्षित रखता है।",
     },
     {
       n: 3,
@@ -200,7 +200,7 @@ const gu: TermsCopy = {
     {
       n: 2,
       title: "પાત્રતા",
-      body: "ભાગ લેનાર વ્યક્તિનો માન્ય મોબાઇલ નંબર સાથે Potato Bazaar એપમાં નોંધાયેલ હોવો જરૂરી છે. એક વ્યક્તિ માત્ર એક જ એકાઉન્ટથી ભાગ લઈ શકશે. સ્પર્ધાના આયોજન અને સંચાલનમાં સીધા સંકળાયેલા કર્મચારીઓ અને ટીમના સભ્યો ઇનામ માટે પાત્ર નહીં હોય. ભાગ લેવાથી આ શરતો સ્વીકારેલી ગણાશે.",
+      body: "ભાગ લેનાર વ્યક્તિનો માન્ય મોબાઇલ નંબર સાથે Potato Bazaar એપમાં નોંધાયેલ હોવો જરૂરી છે. એક વ્યક્તિ માત્ર એક જ એકાઉન્ટથી ભાગ લઈ શકશે. સ્પર્ધાના આયોજન અને સંચાલનમાં સીધા સંકળાયેલા કર્મચારીઓ અને ટીમના સભ્યો ઇનામ માટે પાત્ર નહીં હોય. ભાગ લેવાથી આ શરતો સ્વીકારેલી ગણાશે.\n\nદિવાળી ક્વિઝ ફક્ત બટાકાના ઉદ્યોગ સાથે સંકળાયેલી વ્યક્તિઓ માટે છે, જેમાં ખેડૂતો, વેપારીઓ, કોલ્ડ સ્ટોરેજ સંચાલકો, પ્રોસેસરો, નિકાસકારો અને અન્ય સંબંધિત હિતધારકો સામેલ છે. Potato Bazaar ભાગ લેનારની ઉદ્યોગ સાથેની સંબંધિતતા ચકાસવાનો અને ઇનામ માટે અયોગ્ય ભાગ લેનારને ગેરલાયક ઠરાવવાનો અધિકાર અનામત રાખે છે.",
     },
     {
       n: 3,

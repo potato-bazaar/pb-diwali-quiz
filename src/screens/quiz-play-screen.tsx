@@ -449,7 +449,11 @@ function TermsGate({ onAccept }: { onAccept: () => void }) {
               <h3 className="text-[13.5px] leading-[18px] font-extrabold text-[#1C2447]">
                 {section.n}. {section.title}
               </h3>
-              <p className="mt-[4px] text-[12.5px] leading-[18px] text-[#4A453F]">{section.body}</p>
+              {section.body.split(/\n+/).map((para, i) => (
+                <p key={i} className="mt-[4px] text-[12.5px] leading-[18px] text-[#4A453F]">
+                  {para}
+                </p>
+              ))}
             </section>
           ))}
         </div>

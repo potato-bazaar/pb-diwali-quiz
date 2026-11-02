@@ -210,18 +210,12 @@ function useDailyWinners() {
         return;
       }
       try {
-        let rankedByDay = await Promise.all(days.map((quiz) => fetchDayLeaderboard(quiz.day)));
-        if (rankedByDay.every((list) => list.length === 0) && days.length === 1) {
-          try {
-            rankedByDay = [(await fetchLeaderboard(1, 100)).leaderboard];
-          } catch {
-            /* keep empty day lists */
-          }
-        }
+        const rankedByDay = await Promise.all(days.map((quiz) => fetchDayLeaderboard(quiz.day)));
         if (cancelled) return;
         const rows = assignUniqueDailyWinners(days, rankedByDay)
-          .filter((row) => row.winner)
-          .reverse();
+          .slice()
+          .reverse()
+          .flatMap((group) => group.winners.map((winner) => ({ day: group.day, date: group.date, winner })));
         setBoard({ status: "ready", rows, lockedDays: days.length });
       } catch (error: unknown) {
         if (!cancelled) setBoard({ status: "error", message: errorMessage(error) });
@@ -641,14 +635,17 @@ function DailyWinnersPanel({ board, onRetry }: { board: DailyBoard; onRetry: () 
         </div>
       ) : board.status === "error" ? (
         <BoardMessage title={t("loadFailed")} detail={board.message} onRetry={onRetry} />
-      ) : board.rows.length === 0 && board.lockedDays > 0 ? (
-        <BoardMessage title={t("loadFailed")} detail={t("dailyWinnersEmptyDetail")} onRetry={onRetry} />
       ) : board.rows.length === 0 ? (
         <BoardMessage title={t("dailyWinnersEmpty")} detail={t("dailyWinnersEmptyDetail")} />
       ) : (
         <ul className="flex min-h-0 flex-1 flex-col gap-[10px] overflow-y-auto pb-[72px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {board.rows.map((row, i) => (
-            <DailyWinnerCard key={row.day} row={row} lang={lang} featured={i === 0} />
+            <DailyWinnerCard
+              key={`${row.day}-${row.winner?.userId ?? i}`}
+              row={row}
+              lang={lang}
+              featured={row.day === board.rows[0]?.day}
+            />
           ))}
         </ul>
       )}
@@ -780,12 +777,13 @@ function DailyWinnerCard({ row, lang, featured = false }: { row: DailyRow; lang:
   const place = winner ? [winner.district, winner.state].filter(Boolean).join(", ") : "";
   return (
     <li
-      className={`flex list-none items-center gap-[8px] overflow-visible rounded-[16px] border px-[12px] py-[10px] shadow-[0_4px_12px_rgba(175,95,35,0.08)] ${
+      className={`relative flex list-none items-center gap-[10px] overflow-visible rounded-[18px] border px-[12px] py-[11px] ${
         featured
-          ? "border-[#F6E2B0] bg-[linear-gradient(180deg,#FFF8DC_0%,#FFF3C8_100%)]"
-          : "border-[#F0E4D2] bg-white"
+          ? "border-[#F0D48A] bg-[linear-gradient(180deg,#FFF8DC_0%,#FFF3C8_100%)] shadow-[0_6px_16px_rgba(200,140,40,0.12)]"
+          : "border-[#F0E4D2] bg-white shadow-[0_4px_12px_rgba(175,95,35,0.08)]"
       }`}
     >
+      {featured ? <span className="absolute top-[12px] bottom-[12px] left-0 w-[3px] rounded-full bg-[#E8B83A]" /> : null}
       <WinnerCalendar day={stamp.day} month={stamp.month} />
       {winner ? (
         <>
@@ -793,6 +791,17 @@ function DailyWinnerCard({ row, lang, featured = false }: { row: DailyRow; lang:
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[15px] leading-[18px] font-extrabold text-[#1C2447]">{maskedName(winner)}</span>
             {place ? <span className="mt-[2px] block truncate text-[12px] leading-[15px] text-[#8E8E98]">{place}</span> : null}
+          </span>
+          <span className="flex shrink-0 flex-col items-end justify-center pr-[2px]">
+            <span className="text-[17px] leading-[18px] font-black tabular-nums text-[#2FAE4E]">{winner.totalPoints}</span>
+            <span className="mt-[1px] text-[9px] leading-[11px] font-bold tracking-[0.06em] text-[#8E8E98] uppercase">pts</span>
+            <span className="mt-[6px] flex items-center gap-[3px] text-[12px] leading-[14px] font-bold tabular-nums text-[#C45A28]">
+              <svg viewBox="0 0 16 16" className="h-[12px] w-[12px]" fill="none" aria-hidden="true">
+                <circle cx="8" cy="8" r="6.2" stroke="currentColor" strokeWidth="1.6" />
+                <path d="M8 4.6V8l2.4 1.6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              </svg>
+              {durationLabel(winner)}
+            </span>
           </span>
           <WinnerWreath />
         </>

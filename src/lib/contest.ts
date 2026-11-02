@@ -63,19 +63,32 @@ export function startedQuizDays(now = new Date(), playableDay?: number | null): 
   });
 }
 
+function durationSecondsOf(row: { totalDurationSeconds?: number | null }) {
+  if (typeof row.totalDurationSeconds === "number" && Number.isFinite(row.totalDurationSeconds)) {
+    return Math.round(row.totalDurationSeconds);
+  }
+  return null;
+}
+
+function sameScoreAndTime<T extends { totalPoints?: number; totalDurationSeconds?: number | null }>(a: T, b: T) {
+  return (a.totalPoints ?? 0) === (b.totalPoints ?? 0) && durationSecondsOf(a) !== null && durationSecondsOf(a) === durationSecondsOf(b);
+}
+
 /**
- * Oldest day first: the day's top player wins, then they are skipped on later days
- * so one user cannot take more than one daily prize.
+ * Oldest day first. Everyone tied on that day's top score AND time is a winner.
+ * Those people are skipped on later days so one user cannot take more than one daily prize.
  */
-export function assignUniqueDailyWinners<T extends { userId: number }>(
+export function assignUniqueDailyWinners<T extends { userId: number; totalPoints?: number; totalDurationSeconds?: number | null }>(
   days: { day: number; date: string }[],
   rankedByDay: T[][],
-): { day: number; date: string; winner: T | null }[] {
+): { day: number; date: string; winners: T[] }[] {
   const won = new Set<number>();
   return days.map((quiz, i) => {
-    const winner = (rankedByDay[i] ?? []).find((row) => Number.isFinite(row.userId) && !won.has(row.userId)) ?? null;
-    if (winner) won.add(winner.userId);
-    return { day: quiz.day, date: quiz.date, winner };
+    const eligible = (rankedByDay[i] ?? []).filter((row) => Number.isFinite(row.userId) && !won.has(row.userId));
+    const top = eligible[0];
+    const winners = top ? eligible.filter((row) => row === top || sameScoreAndTime(row, top)) : [];
+    for (const winner of winners) won.add(winner.userId);
+    return { day: quiz.day, date: quiz.date, winners };
   });
 }
 
