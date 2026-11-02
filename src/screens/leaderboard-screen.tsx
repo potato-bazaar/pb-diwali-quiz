@@ -3,7 +3,13 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type CSSProperties, type UIEvent } from "react";
 import { QUESTION_BANK } from "@/data/question-bank";
-import { assignUniqueDailyWinners, completedWinnerDays, indiaToday, msUntilIndiaMidnight } from "@/lib/contest";
+import {
+  assignUniqueDailyWinners,
+  completedWinnerDays,
+  indiaToday,
+  msUntilIndiaMidnight,
+  startedQuizDays,
+} from "@/lib/contest";
 import {
   QuizApiError,
   fetchDayLeaderboard,
@@ -36,18 +42,38 @@ type Board =
 const errorMessage = (error: unknown) =>
   error instanceof QuizApiError ? error.message : "Could not load the leaderboard.";
 
-/** Overall standings from the backend, loading further pages as the list is scrolled. */
-function useLeaderboard() {
+async function loadStandings(page: number, day: number | null): Promise<LeaderboardPage> {
+  try {
+    return await fetchLeaderboard(page, PER_PAGE, day ?? undefined);
+  } catch (error) {
+    if (day == null || page > 1) throw error;
+    const rows = await fetchDayLeaderboard(day);
+    return {
+      page: 1,
+      perPage: rows.length || PER_PAGE,
+      totalPlayers: rows.length,
+      totalPages: 1,
+      leaderboard: rows,
+      me: null,
+    };
+  }
+}
+
+/** Overall standings, or one day's ranking when `day` is set. */
+function useLeaderboard(day: number | null) {
   const [board, setBoard] = useState<Board>({ status: "loading" });
   const [loadingMore, setLoadingMore] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const busy = useRef(false);
   const boardRef = useRef(board);
+  const dayRef = useRef(day);
   boardRef.current = board;
+  dayRef.current = day;
 
   useEffect(() => {
     let cancelled = false;
-    fetchLeaderboard(1, PER_PAGE)
+    setBoard({ status: "loading" });
+    loadStandings(1, day)
       .then((data) => {
         if (cancelled) return;
         setBoard({
@@ -65,20 +91,21 @@ function useLeaderboard() {
     return () => {
       cancelled = true;
     };
-  }, [attempt]);
+  }, [attempt, day]);
 
   useEffect(() => {
     let cancelled = false;
 
     async function refreshQuietly() {
       const current = boardRef.current;
+      const filterDay = dayRef.current ?? undefined;
       if (cancelled || busy.current) return;
       if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
       if (current.status !== "ready") return;
       busy.current = true;
       try {
         const pages = await Promise.all(
-          Array.from({ length: current.page }, (_, i) => fetchLeaderboard(i + 1, PER_PAGE)),
+          Array.from({ length: current.page }, (_, i) => loadStandings(i + 1, filterDay ?? null)),
         );
         if (cancelled) return;
         const seen = new Set<number>();
@@ -118,7 +145,7 @@ function useLeaderboard() {
       window.clearInterval(id);
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, [attempt]);
+  }, [attempt, day]);
 
   function retry() {
     setBoard({ status: "loading" });
@@ -129,7 +156,7 @@ function useLeaderboard() {
     if (board.status !== "ready" || board.page >= board.totalPages || busy.current) return;
     busy.current = true;
     setLoadingMore(true);
-    fetchLeaderboard(board.page + 1, PER_PAGE)
+    loadStandings(board.page + 1, dayRef.current)
       .then((data) => {
         setBoard((prev) => {
           if (prev.status !== "ready") return prev;
@@ -183,7 +210,7 @@ function useDailyWinners() {
         return;
       }
       try {
-        let rankedByDay = await Promise.all(days.map((quiz) => fetchDayLeaderboard(quiz.day, quiz.date)));
+        let rankedByDay = await Promise.all(days.map((quiz) => fetchDayLeaderboard(quiz.day)));
         if (rankedByDay.every((list) => list.length === 0) && days.length === 1) {
           try {
             rankedByDay = [(await fetchLeaderboard(1, 100)).leaderboard];
@@ -242,16 +269,41 @@ const CONFETTI: { key: string; style: CSSProperties }[] = [
 export function LeaderboardScreen() {
   const { t, lang } = useI18n();
   const router = useRouter();
-  const { board, loadingMore, retry, loadMore } = useLeaderboard();
+  const [tab, setTab] = useState<"board" | "winners">("board");
+  const [boardMode, setBoardMode] = useState<"overall" | "day">("overall");
+  const [startedDays, setStartedDays] = useState(() => startedQuizDays());
+  const [selectedDay, setSelectedDay] = useState(() => startedQuizDays().at(-1)?.day ?? 1);
+  const dayFilter = tab === "board" && boardMode === "day" ? selectedDay : null;
+  const { board, loadingMore, retry, loadMore } = useLeaderboard(dayFilter);
   const daily = useDailyWinners();
-  const [tab, setTab] = useState<"overall" | "daily">("overall");
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchQuizStatus()
+      .then(({ contest }) => {
+        if (cancelled) return;
+        const days = startedQuizDays(new Date(), contest.playableDay ?? contest.contestDay);
+        setStartedDays(days);
+        setSelectedDay((current) => (days.some((quiz) => quiz.day === current) ? current : (days.at(-1)?.day ?? 1)));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        const days = startedQuizDays();
+        setStartedDays(days);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function onListScroll(event: UIEvent<HTMLOListElement>) {
     const list = event.currentTarget;
     if (list.scrollHeight - list.scrollTop - list.clientHeight < 240) loadMore();
   }
 
+  const selectedQuiz = startedDays.find((quiz) => quiz.day === selectedDay) ?? startedDays.at(-1);
   const till = formatShortDate(indiaToday(), lang);
+  const dayBannerDate = selectedQuiz ? formatShortDate(selectedQuiz.date, lang) : till;
 
   return (
     <div className="question-in relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-[linear-gradient(to_bottom,#FDF1E3_0%,#FDF4E8_40%,#FCEEDD_72%,#FBE6D0_100%)] text-[#141B36]">
@@ -292,7 +344,7 @@ export function LeaderboardScreen() {
             {t("leaderboard")}
           </p>
         </div>
-        {tab === "overall" ? (
+        {tab === "board" ? (
           <a
             href="#how-ranking-works"
             aria-label="How ranking works"
@@ -316,21 +368,47 @@ export function LeaderboardScreen() {
 
       <div className="relative z-10 flex min-h-0 flex-1 flex-col px-[14px] pt-[4px] pb-[calc(16px+env(safe-area-inset-bottom))]">
         <div className="mb-[10px] flex shrink-0 rounded-full bg-white p-[4px] shadow-[0_4px_12px_rgba(170,110,60,0.10)]">
-          <TabButton active={tab === "overall"} onClick={() => setTab("overall")} icon="trophy">
+          <TabButton active={tab === "board"} onClick={() => setTab("board")} icon="trophy">
             {t("leaderboard")}
           </TabButton>
-          <TabButton active={tab === "daily"} onClick={() => setTab("daily")} icon="calendar">
+          <TabButton active={tab === "winners"} onClick={() => setTab("winners")} icon="calendar">
             {t("dailyWinnersTab")}
           </TabButton>
         </div>
 
-        {tab === "overall" ? (
+        {tab === "board" ? (
           <>
+            <div className="mb-[8px] flex shrink-0 rounded-full bg-[#F4E6D4] p-[3px]">
+              <ModeButton active={boardMode === "overall"} onClick={() => setBoardMode("overall")}>
+                {t("overallTab")}
+              </ModeButton>
+              <ModeButton active={boardMode === "day"} onClick={() => setBoardMode("day")}>
+                {t("dayWiseTab")}
+              </ModeButton>
+            </div>
+            {boardMode === "day" ? (
+              <div className="mb-[8px] flex shrink-0 gap-[6px] overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {startedDays.map((quiz) => (
+                  <button
+                    key={quiz.day}
+                    type="button"
+                    onClick={() => setSelectedDay(quiz.day)}
+                    className={`h-[32px] shrink-0 rounded-full px-[12px] text-[12px] font-bold active:scale-[0.98] ${
+                      selectedDay === quiz.day ? "bg-[#EE6A2A] text-white" : "bg-[#F4E6D4] text-[#6B5344]"
+                    }`}
+                  >
+                    {t("dayLabel", { day: String(quiz.day) })}
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <p className="mb-[8px] flex shrink-0 items-start gap-[6px] rounded-[12px] bg-[#FFF4E4] px-[10px] py-[8px] text-[11.5px] leading-[15px] font-semibold text-[#8A5A28]">
               <span className="mt-[1px] flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded-full bg-[#EE7A2C] text-[10px] font-black text-white">
                 i
               </span>
-              {t("overallBanner", { date: till })}
+              {boardMode === "day"
+                ? t("dayWiseBanner", { day: String(selectedDay), date: dayBannerDate })
+                : t("overallBanner", { date: till })}
             </p>
             <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[18px] border border-[#F2E2CE] bg-white/92 shadow-[0_8px_22px_rgba(170,110,60,0.10)]">
               <ColumnHeader />
@@ -351,13 +429,22 @@ export function LeaderboardScreen() {
                     className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                   >
                     {board.rows.map((entry) => (
-                      <LeaderboardRow key={entry.userId} entry={entry} isMe={entry.userId === board.me?.userId} />
+                      <LeaderboardRow
+                        key={entry.userId}
+                        entry={entry}
+                        isMe={entry.userId === board.me?.userId}
+                        showDaysPlayed={boardMode === "overall"}
+                      />
                     ))}
                     {loadingMore && <SkeletonRow />}
                   </ol>
                   {board.me && !board.rows.some((r) => r.userId === board.me?.userId) && (
                     <ul aria-label="Your rank" className="shrink-0 border-t border-[#F2D9BC] shadow-[0_-6px_14px_rgba(170,110,60,0.10)]">
-                      <LeaderboardRow entry={{ ...board.me, name: t("you") }} isMe />
+                      <LeaderboardRow
+                        entry={{ ...board.me, name: t("you") }}
+                        isMe
+                        showDaysPlayed={boardMode === "overall"}
+                      />
                     </ul>
                   )}
                 </>
@@ -502,6 +589,28 @@ function TabButton({
           <path d="M3.5 9.4h17M8 3.6v3.2M16 3.6v3.2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
         </svg>
       )}
+      {children}
+    </button>
+  );
+}
+
+function ModeButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex h-[36px] flex-1 items-center justify-center rounded-full text-[13px] font-bold active:scale-[0.99] ${
+        active ? "bg-[#EE6A2A] text-white" : "bg-transparent text-[#6B5344]"
+      }`}
+    >
       {children}
     </button>
   );
@@ -811,12 +920,21 @@ function PotatoAvatar({ seed: _seed }: { seed: number }) {
   );
 }
 
-function LeaderboardRow({ entry, isMe = false }: { entry: LeaderboardEntry; isMe?: boolean }) {
+function LeaderboardRow({
+  entry,
+  isMe = false,
+  showDaysPlayed = true,
+}: {
+  entry: LeaderboardEntry;
+  isMe?: boolean;
+  showDaysPlayed?: boolean;
+}) {
   const { rank } = entry;
   const medalKind = RANK_MEDAL_KIND[rank];
   const name = maskedName(entry);
   const place = [entry.district, entry.state].filter(Boolean).join(", ");
   const tint = isMe ? "bg-[linear-gradient(to_right,#FFE9D3,#FFF6EC)]" : (ROW_TINTS[rank] ?? "bg-white");
+  const sub = showDaysPlayed ? `${place ? `${place} · ` : ""}${entry.daysPlayed}/${TOTAL_DAYS} days` : place;
 
   return (
     <li className={`${GRID} list-none border-b border-[#F3EADF] px-[10px] py-[10px] last:border-b-0 ${tint}`}>
@@ -839,10 +957,7 @@ function LeaderboardRow({ entry, isMe = false }: { entry: LeaderboardEntry; isMe
               </span>
             )}
           </span>
-          <span className="block truncate text-[11px] leading-[14px] text-[#8E8E98]">
-            {place ? `${place} · ` : ""}
-            {entry.daysPlayed}/{TOTAL_DAYS} days
-          </span>
+          {sub ? <span className="block truncate text-[11px] leading-[14px] text-[#8E8E98]">{sub}</span> : null}
         </span>
       </span>
 

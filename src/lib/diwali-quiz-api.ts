@@ -203,6 +203,13 @@ export async function submitAttempt(body: SubmitAttemptBody) {
 
 /* ---------- GET /leaderboard ---------- */
 
+/** One day's score, same shape the admin Day-wise tab reads from `entry.days[day]`. */
+export type DayScore = {
+  correctAnswers?: number;
+  points?: number;
+  durationSeconds?: number | null;
+};
+
 export type LeaderboardEntry = {
   userId: number;
   name: string | null;
@@ -218,6 +225,8 @@ export type LeaderboardEntry = {
   totalDurationSeconds?: number | null;
   /** "45s", "1m 5s", "2m". Null when no time was recorded. */
   totalDurationText?: string | null;
+  /** Per-day scores. Admin and day-wise boards use `days["2"].points` for Day 2. */
+  days?: Record<string, DayScore>;
 };
 
 export type LeaderboardPage = {
@@ -233,16 +242,13 @@ export type LeaderboardPage = {
   > | null;
 };
 
-/** Overall standings, or one contest day's ranking when `day` is set. */
-export function fetchLeaderboard(page = 1, perPage = 50, day?: number, extra?: Record<string, string>) {
+/** Overall standings, or one contest day's ranking when `day` is set (same `day` query as admin). */
+export function fetchLeaderboard(page = 1, perPage = 50, day?: number) {
   const query = new URLSearchParams({ page: String(page), perPage: String(perPage) });
   if (day && day >= 1) query.set("day", String(day));
-  if (extra) {
-    for (const [key, value] of Object.entries(extra)) {
-      if (value) query.set(key, value);
-    }
-  }
-  return request<LeaderboardPage>(`/leaderboard?${query.toString()}`);
+  return request<LeaderboardPage>(`/leaderboard?${query.toString()}`).then((page) =>
+    day && day >= 1 ? withDayScores(page, day) : page,
+  );
 }
 
 function asUserId(value: unknown) {
@@ -250,28 +256,44 @@ function asUserId(value: unknown) {
   return Number.isFinite(id) && id > 0 ? id : null;
 }
 
-/** Ranked players for one contest day. Tries `day`, then `date`, then `contestDay`. */
-export async function fetchDayLeaderboard(day: number, date: string): Promise<LeaderboardEntry[]> {
-  const tries: Array<() => Promise<LeaderboardPage>> = [
-    () => fetchLeaderboard(1, 100, day),
-    () => fetchLeaderboard(1, 100, undefined, { date }),
-    () => fetchLeaderboard(1, 100, undefined, { contestDay: String(day) }),
-  ];
-  let lastEmpty: LeaderboardEntry[] = [];
-  for (const run of tries) {
-    try {
-      const page = await run();
-      const rows = (page.leaderboard ?? [])
-        .map((row) => {
-          const userId = asUserId(row.userId) ?? asUserId((row as unknown as { user_id?: unknown }).user_id);
-          return userId ? { ...row, userId } : null;
-        })
-        .filter((row): row is LeaderboardEntry => row !== null);
-      if (rows.length > 0) return rows;
-      lastEmpty = rows;
-    } catch {
-      // Next query shape — unknown `date` on the overall endpoint 400s on some backends.
-    }
-  }
-  return lastEmpty;
+function durationText(totalSeconds: number | null | undefined) {
+  if (totalSeconds == null || !Number.isFinite(totalSeconds)) return null;
+  const seconds = Math.max(0, Math.round(totalSeconds));
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  if (minutes === 0) return `${rest}s`;
+  if (rest === 0) return `${minutes}m`;
+  return `${minutes}m ${rest}s`;
+}
+
+/** Show this day's points/time when the API includes `days[day]`, like the admin panel. */
+export function applyDayScore(entry: LeaderboardEntry, day: number): LeaderboardEntry {
+  const slice = entry.days?.[String(day)];
+  if (!slice) return entry;
+  const totalDurationSeconds = slice.durationSeconds ?? entry.totalDurationSeconds;
+  return {
+    ...entry,
+    totalPoints: slice.points ?? entry.totalPoints,
+    totalDurationSeconds,
+    totalDurationText: durationText(totalDurationSeconds) ?? entry.totalDurationText,
+  };
+}
+
+function withDayScores(page: LeaderboardPage, day: number): LeaderboardPage {
+  return {
+    ...page,
+    leaderboard: (page.leaderboard ?? []).map((row) => applyDayScore(row, day)),
+    me: page.me ? applyDayScore(page.me as LeaderboardEntry, day) : page.me,
+  };
+}
+
+/** Ranked players for one contest day — same `day` query the admin Day-wise tab uses. */
+export async function fetchDayLeaderboard(day: number): Promise<LeaderboardEntry[]> {
+  const page = await fetchLeaderboard(1, 100, day);
+  return (page.leaderboard ?? [])
+    .map((row) => {
+      const userId = asUserId(row.userId) ?? asUserId((row as unknown as { user_id?: unknown }).user_id);
+      return userId ? applyDayScore({ ...row, userId }, day) : null;
+    })
+    .filter((row): row is LeaderboardEntry => row !== null);
 }

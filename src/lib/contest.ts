@@ -53,6 +53,16 @@ export function completedWinnerDays(now = new Date(), playableDay?: number | nul
   });
 }
 
+/** Contest days that have started (today inclusive), so a day-wise board can be shown. */
+export function startedQuizDays(now = new Date(), playableDay?: number | null): QuizDay[] {
+  const today = indiaDate(now);
+  return QUESTION_BANK.filter((quiz) => {
+    if (quiz.date <= today) return true;
+    if (typeof playableDay === "number" && playableDay >= 1 && quiz.day <= playableDay) return true;
+    return false;
+  });
+}
+
 /**
  * Oldest day first: the day's top player wins, then they are skipped on later days
  * so one user cannot take more than one daily prize.
