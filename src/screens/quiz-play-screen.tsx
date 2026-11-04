@@ -16,6 +16,7 @@ import {
   CONTEST_START,
   ENDED,
   NOT_LIVE,
+  PAUSED_QUIZ_DAY,
   attemptAnswers,
   getQuizDay,
   loadAttempt,
@@ -91,7 +92,11 @@ export function QuizPlayScreen() {
   return (
     <div className="relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-[linear-gradient(to_bottom,#FDF1E3_0%,#FDF3E6_45%,#FCEEDD_70%,#FBE3CA_100%)] text-[#141B36]">
       <PlayBackdrop />
-      {contestState === null ? null : !termsOk ? (
+      {contestState === null ? null : contestState.day === PAUSED_QUIZ_DAY &&
+        !contestState.playedToday &&
+        !playedTodayLocally(PAUSED_QUIZ_DAY) ? (
+        <QuizPaused />
+      ) : !termsOk ? (
         <TermsGate
           onAccept={() => {
             try {
@@ -487,6 +492,35 @@ function TermsGate({ onAccept }: { onAccept: () => void }) {
         </button>
       </main>
       <PlayFooter compact />
+    </>
+  );
+}
+
+function QuizPaused() {
+  const exit = useExit();
+  const { t } = useI18n();
+  return (
+    <>
+      <PlayNav onClose={exit} subtitle={t("dayLabel", { day: PAUSED_QUIZ_DAY })} />
+      <main className="question-in relative z-10 flex flex-1 flex-col items-center justify-center px-[30px] py-[16px] text-center">
+        <img
+          src="/quiz/gift-top.png"
+          alt=""
+          draggable={false}
+          className="h-[84px] w-[84px] object-contain drop-shadow-[0_6px_10px_rgba(150,60,20,0.25)]"
+        />
+        <p className="mt-[12px] max-w-[280px] font-display text-[28px] leading-[34px] font-black text-[#E2551F]">
+          {t("activatesIn")}
+        </p>
+        <button
+          type="button"
+          onClick={exit}
+          className="mt-[24px] flex h-[52px] w-full max-w-[240px] items-center justify-center rounded-full bg-gradient-to-r from-[#F2742C] via-[#EC5F24] to-[#E2461C] text-[17px] font-bold text-white shadow-[0_10px_22px_rgba(226,80,28,0.36)] active:scale-[0.98]"
+        >
+          {t("goHome")}
+        </button>
+      </main>
+      <PlayFooter />
     </>
   );
 }

@@ -15,6 +15,8 @@ export type ContestDayNumber = number;
 export const UPCOMING = 0;
 export const ENDED = -1;
 export const NOT_LIVE = -2;
+/** Held on this branch. Start Quiz shows a wait screen instead of the questions. */
+export const PAUSED_QUIZ_DAY = 5;
 
 function indiaDate(now: Date) {
   const parts = new Intl.DateTimeFormat("en-US", {
