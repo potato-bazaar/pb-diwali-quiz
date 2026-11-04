@@ -1,8 +1,7 @@
-import type { QuizDay, QuizQuestion } from "@/data/question-bank";
+import type { QuizDay } from "@/data/question-bank";
 import { STATIC_QUIZ_USERS } from "@/data/static-quiz-users";
 import type { QuizSession } from "@/lib/session";
 
-const SHUFFLE_FROM_DAY = 5;
 const VISITOR_KEY = "pb-diwali-quiz:visitor-id";
 
 let memoryVisitor = "";
@@ -17,10 +16,10 @@ function digits(value: string | number | undefined) {
 
 export function usesStaticQuestions(session: QuizSession) {
   const name = normalizeName(session.userName);
-  const userId = digits(session.userId) || session.userId.trim();
+  const ids = [digits(session.userId), digits(session.userName)].filter((id) => id.length >= 8);
   return STATIC_QUIZ_USERS.some((listed) => {
     const listedId = digits(listed.userId);
-    if (listedId && userId && (listedId === userId || listedId === digits(session.userName))) return true;
+    if (listedId && ids.includes(listedId)) return true;
     if (listed.name && name && normalizeName(listed.name) === name) return true;
     return false;
   });
@@ -50,7 +49,11 @@ function shuffle<T>(items: T[], seed: number): T[] {
   const rand = mulberry32(seed);
   for (let i = next.length - 1; i > 0; i--) {
     const j = Math.floor(rand() * (i + 1));
-    [next[i], next[j]] = [next[j], next[i]];
+    const a = next[i];
+    const b = next[j];
+    if (a === undefined || b === undefined) continue;
+    next[i] = b;
+    next[j] = a;
   }
   return next;
 }
@@ -66,20 +69,21 @@ function visitorId() {
     memoryVisitor = id;
     return id;
   } catch {
-    memoryVisitor = memoryVisitor || `${Date.now()}-${Math.random()}`;
+    memoryVisitor = `${Date.now()}-${Math.random()}`;
     return memoryVisitor;
   }
 }
 
 function seedFor(session: QuizSession, day: number) {
-  const id = session.userId.trim() || session.userName.trim() || visitorId();
+  const id = session.userId.trim() || session.userName.trim() || session.token.trim() || visitorId();
   return hashSeed(`d${day}:${id}`);
 }
 
-/** Days 1–4 stay in bank order. Day 5–10 shuffle per player unless their name is on the static list. */
+/**
+ * The 7 listed users always get the original bank order.
+ * Every other user (app, web, guest, no number) gets a unique question order.
+ */
 export function quizForPlayer(quiz: QuizDay, session: QuizSession): QuizDay {
-  if (quiz.day < SHUFFLE_FROM_DAY) return quiz;
   if (usesStaticQuestions(session)) return quiz;
-  const questions: QuizQuestion[] = shuffle(quiz.questions, seedFor(session, quiz.day));
-  return { ...quiz, questions };
+  return { ...quiz, questions: shuffle(quiz.questions, seedFor(session, quiz.day)) };
 }

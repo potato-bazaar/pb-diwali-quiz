@@ -32,7 +32,7 @@ function playedOnServer(day: ContestDayNumber, contest: QuizContest, player: Qui
   return true;
 }
 
-/** Web/localhost testing: start Day 5 so shuffle can be checked. `?day=6` overrides. App keeps the live calendar day. */
+/** Browser/localhost: Day 5+ so shuffle is visible. App WebView keeps the live calendar day. `?day=` overrides. */
 function applyWebTestDay(day: ContestDayNumber): ContestDayNumber {
   if (typeof window === "undefined" || day < 1) return day;
   const query = Number(new URLSearchParams(window.location.search).get("day"));
