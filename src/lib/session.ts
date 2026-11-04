@@ -50,7 +50,7 @@ function tokenFrom(obj: Loose | null | undefined): string {
 
 function userIdFrom(obj: Loose | null | undefined): string {
   if (!obj) return "";
-  for (const key of ["userId", "id", "uid", "sub"]) {
+  for (const key of ["userId", "id", "uid", "sub", "mobile", "phone", "mobileNumber", "mobile_number"]) {
     const raw = obj[key];
     if (typeof raw === "number" && Number.isFinite(raw)) return String(raw);
     const value = asString(raw);
@@ -268,7 +268,7 @@ export function isNativeQuizHost() {
     webkit?: { messageHandlers?: unknown };
     __PB_ZONE_SESSION__?: unknown;
   };
-  return Boolean(host.ReactNativeWebView || host.Android || host.webkit?.messageHandlers || host.__PB_ZONE_SESSION__);
+  return Boolean(host.ReactNativeWebView || host.Android || host.__PB_ZONE_SESSION__);
 }
 
 function hostLooksNative() {
