@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { QUESTION_BANK } from "@/data/question-bank";
-import { clearAttempt, loadAttempt, PAUSED_QUIZ_DAY, playedTodayLocally, resolveContestDay } from "@/lib/contest";
+import { clearAttempt, loadAttempt, playedTodayLocally, resolveContestDay } from "@/lib/contest";
 import { useI18n } from "@/components/language-provider";
 import { postToNative } from "@/lib/native-bridge";
 import { useContestDay } from "@/lib/use-contest-day";
@@ -250,10 +250,6 @@ export function QuizHomeScreen({ completed = false }: { completed?: boolean }) {
               <HomeCta
                 label={t("startQuiz")}
                 onClick={() => {
-                  if (day === PAUSED_QUIZ_DAY) {
-                    router.push("/play");
-                    return;
-                  }
                   if (day !== null && day >= 1 && loadAttempt(day)?.synced !== true) clearAttempt(day);
                   postToNative({ type: "QUIZ_START" });
                   router.push("/play");

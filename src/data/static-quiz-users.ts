@@ -1,6 +1,6 @@
 /**
- * Day 5–10: these Potato Bazaar users always see the original question order.
- * Everyone else sees the same questions shuffled.
+ * Day 5–10: these Potato Bazaar users always see that day's original questions.
+ * Everyone else gets 10 questions drawn from the Day 5–10 pool, different per person.
  * Match against the logged-in session name and/or userId/mobile.
  */
 export const STATIC_QUIZ_USERS: { name?: string; userId?: string | number }[] = [

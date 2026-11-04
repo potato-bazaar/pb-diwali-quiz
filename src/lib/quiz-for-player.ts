@@ -1,4 +1,4 @@
-import type { QuizDay } from "@/data/question-bank";
+import { QUESTION_BANK, type QuizDay, type QuizQuestion } from "@/data/question-bank";
 import { STATIC_QUIZ_USERS } from "@/data/static-quiz-users";
 import type { QuizSession } from "@/lib/session";
 
@@ -74,16 +74,30 @@ function visitorId() {
   }
 }
 
-function seedFor(session: QuizSession, day: number) {
+function seedForUser(session: QuizSession) {
   const id = session.userId.trim() || session.userName.trim() || session.token.trim() || visitorId();
-  return hashSeed(`d${day}:${id}`);
+  return hashSeed(`pool:${id}`);
+}
+
+/** Days 5–10 share one pool. Days 1–4 stay on the original paper for everyone. */
+const SHUFFLE_FROM_DAY = 5;
+
+function laterQuestions(): QuizQuestion[] {
+  return QUESTION_BANK.filter((day) => day.day >= SHUFFLE_FROM_DAY).flatMap((day) => day.questions);
 }
 
 /**
- * The 7 listed users always get the original bank order.
- * Every other user (app, web, guest, no number) gets a unique question order.
+ * The 7 listed users keep each day's original questions, in the original order.
+ * From Day 5, every other user gets 10 questions drawn from the Day 5–10 pool.
+ * The draw is fixed per person, so each day shows a different set and no question repeats.
  */
 export function quizForPlayer(quiz: QuizDay, session: QuizSession): QuizDay {
-  if (usesStaticQuestions(session)) return quiz;
-  return { ...quiz, questions: shuffle(quiz.questions, seedFor(session, quiz.day)) };
+  if (quiz.day < SHUFFLE_FROM_DAY || usesStaticQuestions(session)) return quiz;
+  const count = quiz.questions.length;
+  const dealt = QUESTION_BANK.filter((day) => day.day >= SHUFFLE_FROM_DAY && day.day < quiz.day).reduce(
+    (total, day) => total + day.questions.length,
+    0,
+  );
+  const questions = shuffle(laterQuestions(), seedForUser(session)).slice(dealt, dealt + count);
+  return { ...quiz, questions };
 }
