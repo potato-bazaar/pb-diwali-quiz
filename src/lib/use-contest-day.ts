@@ -11,6 +11,7 @@ import {
   type ContestDayNumber,
 } from "@/lib/contest";
 import { fetchQuizStatus, type QuizContest, type QuizPlayerStatus } from "@/lib/diwali-quiz-api";
+import { isNativeQuizHost } from "@/lib/session";
 
 export type ContestState = {
   /** 1–10 to play that day, otherwise `UPCOMING`, `ENDED` or `NOT_LIVE`. */
@@ -29,6 +30,15 @@ function playedOnServer(day: ContestDayNumber, contest: QuizContest, player: Qui
   // Only an attempt finished today hides Start Quiz. A previous day must show Start again.
   if (player.attemptedAt) return isSubmittedToday(player.attemptedAt);
   return true;
+}
+
+/** Web/localhost testing: start Day 5 so shuffle can be checked. `?day=6` overrides. App keeps the live calendar day. */
+function applyWebTestDay(day: ContestDayNumber): ContestDayNumber {
+  if (typeof window === "undefined" || day < 1) return day;
+  const query = Number(new URLSearchParams(window.location.search).get("day"));
+  if (Number.isInteger(query) && query >= 1 && query <= QUESTION_BANK.length) return query;
+  if (!isNativeQuizHost() && day < 5) return 5;
+  return day;
 }
 
 function dayFromServer(contest: QuizContest): ContestDayNumber {
@@ -53,12 +63,12 @@ export function useContestDay(): ContestState | null {
     let cancelled = false;
     const load: Promise<ContestState> = fetchQuizStatus()
       .then(({ contest, player }) => {
-        const day = dayFromServer(contest);
+        const day = applyWebTestDay(dayFromServer(contest));
         const playedToday = playedOnServer(day, contest, player);
         if (day >= 1 && !playedToday) clearAttempt(day);
         return { day, contest, playedToday };
       })
-      .catch(() => ({ day: resolveContestDay(), contest: null, playedToday: false }));
+      .catch(() => ({ day: applyWebTestDay(resolveContestDay()), contest: null, playedToday: false }));
     void load.then((next) => {
       if (!cancelled) setState(next);
     });

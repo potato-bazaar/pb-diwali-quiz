@@ -25,6 +25,8 @@ import {
   type SubmittedAttempt,
 } from "@/lib/contest";
 import { QuizApiError, submitAttempt, type ServerAttempt } from "@/lib/diwali-quiz-api";
+import { quizForPlayer } from "@/lib/quiz-for-player";
+import { getSession, waitForSessionToken } from "@/lib/session";
 import { postToNative } from "@/lib/native-bridge";
 import { unlockAudio } from "@/lib/sound";
 import { useContestDay, type ContestState } from "@/lib/use-contest-day";
@@ -103,16 +105,32 @@ export function QuizPlayScreen() {
           }}
         />
       ) : contestState.day >= 1 ? (
-        <DayQuiz
-          key={contestState.day}
-          quiz={getQuizDay(contestState.day)}
-          alreadyPlayed={contestState.playedToday}
-        />
+        <PlayerDayQuiz day={contestState.day} alreadyPlayed={contestState.playedToday} />
       ) : (
         <ContestClosed state={contestState} />
       )}
     </div>
   );
+}
+
+function PlayerDayQuiz({ day, alreadyPlayed }: { day: number; alreadyPlayed: boolean }) {
+  const [quiz, setQuiz] = useState<QuizDay | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const base = getQuizDay(day);
+    waitForSessionToken()
+      .catch(() => "")
+      .finally(() => {
+        if (!cancelled) setQuiz(quizForPlayer(base, getSession()));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [day]);
+
+  if (!quiz) return null;
+  return <DayQuiz key={`${quiz.day}-${quiz.questions.map((q) => q.id).join(".")}`} quiz={quiz} alreadyPlayed={alreadyPlayed} />;
 }
 
 function useExit() {
