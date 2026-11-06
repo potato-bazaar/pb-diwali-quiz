@@ -1,4 +1,4 @@
-import type { QuizQuestion } from "@/data/question-bank";
+import { QUESTION_BANK, type QuizQuestion } from "@/data/question-bank";
 import type { AppLanguage } from "@/lib/language";
 import { bnQuestions } from "@/data/i18n/bn";
 import { guQuestions } from "@/data/i18n/gu";
@@ -22,8 +22,18 @@ const PACKS: Partial<Record<AppLanguage, Record<string, QuestionCopy>>> = {
   kn: knQuestions,
 };
 
+function englishSource(id: string) {
+  for (const day of QUESTION_BANK) {
+    const match = day.questions.find((item) => item.id === id);
+    if (match) return match;
+  }
+  return null;
+}
+
 /** Same option order and answer letter. Only the words change. */
 export function localizeQuestion(question: QuizQuestion, lang: AppLanguage): QuizQuestion {
+  const source = englishSource(question.id);
+  if (!source || source.text !== question.text) return question;
   const copy = PACKS[lang]?.[question.id];
   if (!copy) return question;
   return { ...question, text: copy.text, options: copy.options };
