@@ -34,9 +34,11 @@ function playedOnServer(day: ContestDayNumber, contest: QuizContest, player: Qui
 
 /** Browser/localhost: Day 5+ so shuffle is visible. App WebView keeps the live calendar day. `?day=` overrides. */
 function applyWebTestDay(day: ContestDayNumber): ContestDayNumber {
-  if (typeof window === "undefined" || day < 1) return day;
+  if (typeof window === "undefined") return day;
   const query = Number(new URLSearchParams(window.location.search).get("day"));
   if (Number.isInteger(query) && query >= 1 && query <= QUESTION_BANK.length) return query;
+  if (Number.isInteger(query) && (query === ENDED || query > QUESTION_BANK.length)) return ENDED;
+  if (day < 1) return day;
   if (!isNativeQuizHost() && day < 5) return 5;
   return day;
 }

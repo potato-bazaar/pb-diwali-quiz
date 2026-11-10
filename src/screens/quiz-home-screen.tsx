@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { QUESTION_BANK } from "@/data/question-bank";
-import { clearAttempt, loadAttempt, playedTodayLocally, resolveContestDay } from "@/lib/contest";
+import { ENDED, clearAttempt, loadAttempt, playedTodayLocally, resolveContestDay } from "@/lib/contest";
 import { useI18n } from "@/components/language-provider";
 import { postToNative } from "@/lib/native-bridge";
 import { useContestDay } from "@/lib/use-contest-day";
@@ -43,16 +43,32 @@ const HOME_PRIZES: {
 ];
 
 /** `completed`: shown after today's quiz is done, with a leaderboard link instead of Start Quiz. */
-export function QuizHomeScreen({ completed = false }: { completed?: boolean }) {
+export function QuizHomeScreen({
+  completed = false,
+  previewEnded = false,
+}: {
+  completed?: boolean;
+  previewEnded?: boolean;
+}) {
   const router = useRouter();
   const { t } = useI18n();
   const contestState = useContestDay();
-  const [clockDay, setClockDay] = useState<number | null>(null);
+  const [clockDay, setClockDay] = useState<number>(() => resolveContestDay());
   useEffect(() => {
+    const query = Number(new URLSearchParams(window.location.search).get("day"));
+    if (Number.isInteger(query) && (query === ENDED || query > QUESTION_BANK.length)) {
+      setClockDay(ENDED);
+      return;
+    }
     setClockDay(resolveContestDay());
   }, []);
   const day = contestState?.day ?? clockDay;
   const isLastDay = day !== null && day >= QUESTION_BANK.length;
+  const contestEnded =
+    previewEnded ||
+    day === ENDED ||
+    clockDay === ENDED ||
+    contestState?.contest?.status === "ended";
   const savedToday = day !== null && day >= 1 && playedTodayLocally(day);
   const ready = day !== null;
   // Prefer the server: if today's attempt is not on the leaderboard, show Start Quiz again.
@@ -82,7 +98,7 @@ export function QuizHomeScreen({ completed = false }: { completed?: boolean }) {
       ro.disconnect();
       window.removeEventListener("resize", fit);
     };
-  }, [done, ready]);
+  }, [done, ready, contestEnded]);
 
   return (
     <div
@@ -236,7 +252,15 @@ export function QuizHomeScreen({ completed = false }: { completed?: boolean }) {
       {/* Extra bottom pad clears the home indicator / gesture bar (WebView zeroes .mobile-device padding). */}
       <footer className="relative z-10 flex w-full shrink-0 flex-col px-[clamp(16px,6vw,26px)] pt-[10px] pb-[max(28px,calc(env(safe-area-inset-bottom)+18px))]">
 
-        {ready || completed ? (
+        {contestEnded ? (
+          <HomeCta
+            label={t("viewLeaderboard")}
+            onClick={() => {
+              postToNative({ type: "QUIZ_LEADERBOARD" });
+              router.push("/leaderboard");
+            }}
+          />
+        ) : ready || completed ? (
           done ? (
             <HomeCta
               label={t("viewLeaderboard")}
@@ -271,7 +295,7 @@ export function QuizHomeScreen({ completed = false }: { completed?: boolean }) {
         ) : (
           <div className="h-[52px]" />
         )}
-        {done && (
+        {done && !contestEnded && (
           <p className="mt-[12px] flex items-center justify-center gap-[6px] text-[13.5px] leading-[18px] font-semibold text-[#8A4A1E]">
             <ClockIcon className="h-[15px] w-[15px] shrink-0" />
             {isLastDay ? t("lastDay") : t("tomorrow")}
