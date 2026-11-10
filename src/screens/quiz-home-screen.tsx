@@ -43,17 +43,11 @@ const HOME_PRIZES: {
 ];
 
 /** `completed`: shown after today's quiz is done, with a leaderboard link instead of Start Quiz. */
-export function QuizHomeScreen({
-  completed = false,
-  previewEnded = false,
-}: {
-  completed?: boolean;
-  previewEnded?: boolean;
-}) {
+export function QuizHomeScreen({ completed = false }: { completed?: boolean }) {
   const router = useRouter();
   const { t } = useI18n();
   const contestState = useContestDay();
-  const [clockDay, setClockDay] = useState<number>(() => resolveContestDay());
+  const [clockDay, setClockDay] = useState<number | null>(null);
   useEffect(() => {
     const query = Number(new URLSearchParams(window.location.search).get("day"));
     if (Number.isInteger(query) && (query === ENDED || query > QUESTION_BANK.length)) {
@@ -65,10 +59,7 @@ export function QuizHomeScreen({
   const day = contestState?.day ?? clockDay;
   const isLastDay = day !== null && day >= QUESTION_BANK.length;
   const contestEnded =
-    previewEnded ||
-    day === ENDED ||
-    clockDay === ENDED ||
-    contestState?.contest?.status === "ended";
+    day === ENDED || clockDay === ENDED || contestState?.contest?.status === "ended";
   const savedToday = day !== null && day >= 1 && playedTodayLocally(day);
   const ready = day !== null;
   // Prefer the server: if today's attempt is not on the leaderboard, show Start Quiz again.
