@@ -11,6 +11,7 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-lato), system-ui, sans-serif;
   --font-display: var(--font-nunito), var(--font-lato), system-ui, sans-serif;
+  --font-poster: var(--font-playfair), Georgia, "Times New Roman", serif;
 }
 
 html,
