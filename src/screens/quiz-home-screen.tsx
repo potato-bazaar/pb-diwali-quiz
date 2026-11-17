@@ -7,7 +7,7 @@ import { ENDED, clearAttempt, loadAttempt, playedTodayLocally, resolveContestDay
 import { useI18n } from "@/components/language-provider";
 import { postToNative } from "@/lib/native-bridge";
 import { useContestDay } from "@/lib/use-contest-day";
-import { QuizResultsSoonScreen } from "@/screens/quiz-results-soon-screen";
+import { LeaderboardScreen } from "@/screens/leaderboard-screen";
 
 const PETALS: { key: string; style: CSSProperties }[] = [
   { key: "subtitle-left", style: { top: "29%", left: "2%", transform: "rotate(-35deg) scale(0.9)" } },
@@ -92,7 +92,7 @@ export function QuizHomeScreen({ completed = false }: { completed?: boolean }) {
     };
   }, [done, ready, contestEnded]);
 
-  if (contestEnded) return <QuizResultsSoonScreen />;
+  if (contestEnded) return <LeaderboardScreen />;
 
   return (
     <div

@@ -1,254 +1,38 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type CSSProperties, type UIEvent } from "react";
-import { QUESTION_BANK } from "@/data/question-bank";
-import {
-  assignUniqueDailyWinners,
-  completedWinnerDays,
-  indiaToday,
-  msUntilIndiaMidnight,
-  startedQuizDays,
-} from "@/lib/contest";
-import {
-  QuizApiError,
-  fetchDayLeaderboard,
-  fetchLeaderboard,
-  fetchQuizStatus,
-  type LeaderboardEntry,
-  type LeaderboardPage,
-} from "@/lib/diwali-quiz-api";
+import { useLayoutEffect, useRef, type CSSProperties } from "react";
 import { useI18n } from "@/components/language-provider";
 import { postToNative } from "@/lib/native-bridge";
-import { getSession } from "@/lib/session";
 
-const TOTAL_DAYS = QUESTION_BANK.length;
-const PER_PAGE = 50;
-/** Quiet background poll so ranks stay live while the screen is open. */
-const POLL_MS = 8_000;
+const CARD_GAP = 10;
 
-type Board =
-  | { status: "loading" }
-  | { status: "error"; message: string }
-  | {
-      status: "ready";
-      rows: LeaderboardEntry[];
-      page: number;
-      totalPages: number;
-      totalPlayers: number;
-      me: LeaderboardPage["me"];
-    };
+type FinalWinner = {
+  rank: number;
+  name: string;
+  title: string;
+  prize: string;
+};
 
-const errorMessage = (error: unknown) =>
-  error instanceof QuizApiError ? error.message : "Could not load the leaderboard.";
-
-async function loadStandings(page: number, day: number | null): Promise<LeaderboardPage> {
-  try {
-    return await fetchLeaderboard(page, PER_PAGE, day ?? undefined);
-  } catch (error) {
-    if (day == null || page > 1) throw error;
-    const rows = await fetchDayLeaderboard(day);
-    return {
-      page: 1,
-      perPage: rows.length || PER_PAGE,
-      totalPlayers: rows.length,
-      totalPages: 1,
-      leaderboard: rows,
-      me: null,
-    };
-  }
-}
-
-/** Overall standings, or one day's ranking when `day` is set. */
-function useLeaderboard(day: number | null) {
-  const [board, setBoard] = useState<Board>({ status: "loading" });
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [attempt, setAttempt] = useState(0);
-  const busy = useRef(false);
-  const boardRef = useRef(board);
-  const dayRef = useRef(day);
-  boardRef.current = board;
-  dayRef.current = day;
-
-  useEffect(() => {
-    let cancelled = false;
-    setBoard({ status: "loading" });
-    loadStandings(1, day)
-      .then((data) => {
-        if (cancelled) return;
-        setBoard({
-          status: "ready",
-          rows: data.leaderboard,
-          page: data.page,
-          totalPages: data.totalPages,
-          totalPlayers: data.totalPlayers,
-          me: data.me,
-        });
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) setBoard({ status: "error", message: errorMessage(error) });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [attempt, day]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function refreshQuietly() {
-      const current = boardRef.current;
-      const filterDay = dayRef.current ?? undefined;
-      if (cancelled || busy.current) return;
-      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
-      if (current.status !== "ready") return;
-      busy.current = true;
-      try {
-        const pages = await Promise.all(
-          Array.from({ length: current.page }, (_, i) => loadStandings(i + 1, filterDay ?? null)),
-        );
-        if (cancelled) return;
-        const seen = new Set<number>();
-        const rows: LeaderboardEntry[] = [];
-        for (const data of pages) {
-          for (const row of data.leaderboard) {
-            if (seen.has(row.userId)) continue;
-            seen.add(row.userId);
-            rows.push(row);
-          }
-        }
-        const last = pages[pages.length - 1];
-        setBoard({
-          status: "ready",
-          rows,
-          page: last.page,
-          totalPages: last.totalPages,
-          totalPlayers: last.totalPlayers,
-          me: last.me,
-        });
-      } catch {
-        // Keep the last good board; the next tick tries again.
-      } finally {
-        busy.current = false;
-      }
-    }
-
-    const id = window.setInterval(() => {
-      void refreshQuietly();
-    }, POLL_MS);
-    const onVis = () => {
-      if (document.visibilityState === "visible") void refreshQuietly();
-    };
-    document.addEventListener("visibilitychange", onVis);
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-      document.removeEventListener("visibilitychange", onVis);
-    };
-  }, [attempt, day]);
-
-  function retry() {
-    setBoard({ status: "loading" });
-    setAttempt((n) => n + 1);
-  }
-
-  function loadMore() {
-    if (board.status !== "ready" || board.page >= board.totalPages || busy.current) return;
-    busy.current = true;
-    setLoadingMore(true);
-    loadStandings(board.page + 1, dayRef.current)
-      .then((data) => {
-        setBoard((prev) => {
-          if (prev.status !== "ready") return prev;
-          const seen = new Set(prev.rows.map((r) => r.userId));
-          return {
-            ...prev,
-            rows: [...prev.rows, ...data.leaderboard.filter((r) => !seen.has(r.userId))],
-            page: data.page,
-            totalPages: data.totalPages,
-            totalPlayers: data.totalPlayers,
-          };
-        });
-      })
-      .catch(() => {
-        // The next scroll to the bottom tries again.
-      })
-      .finally(() => {
-        busy.current = false;
-        setLoadingMore(false);
-      });
-  }
-
-  return { board, loadingMore, retry, loadMore };
-}
-
-type DailyRow = { day: number; date: string; winner: LeaderboardEntry | null };
-
-type DailyBoard =
-  | { status: "loading" }
-  | { status: "error"; message: string }
-  | { status: "ready"; rows: DailyRow[]; lockedDays: number };
-
-function useDailyWinners() {
-  const [board, setBoard] = useState<DailyBoard>({ status: "loading" });
-  const [attempt, setAttempt] = useState(0);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      let playableDay: number | null = null;
-      try {
-        const status = await fetchQuizStatus();
-        playableDay = status.contest.playableDay ?? status.contest.contestDay;
-      } catch {
-        playableDay = null;
-      }
-      const days = completedWinnerDays(new Date(), playableDay);
-      if (days.length === 0) {
-        if (!cancelled) setBoard({ status: "ready", rows: [], lockedDays: 0 });
-        return;
-      }
-      try {
-        const rankedByDay = await Promise.all(days.map((quiz) => fetchDayLeaderboard(quiz.day)));
-        if (cancelled) return;
-        const rows = assignUniqueDailyWinners(days, rankedByDay)
-          .slice()
-          .reverse()
-          .flatMap((group) => group.winners.map((winner) => ({ day: group.day, date: group.date, winner })));
-        setBoard({ status: "ready", rows, lockedDays: days.length });
-      } catch (error: unknown) {
-        if (!cancelled) setBoard({ status: "error", message: errorMessage(error) });
-      }
-    }
-
-    void load();
-    const poll = window.setInterval(() => {
-      void load();
-    }, POLL_MS);
-    const midnight = window.setTimeout(() => {
-      void load();
-    }, msUntilIndiaMidnight());
-    const onVis = () => {
-      if (document.visibilityState === "visible") void load();
-    };
-    document.addEventListener("visibilitychange", onVis);
-    return () => {
-      cancelled = true;
-      window.clearInterval(poll);
-      window.clearTimeout(midnight);
-      document.removeEventListener("visibilitychange", onVis);
-    };
-  }, [attempt]);
-
-  return {
-    board,
-    retry: () => {
-      setBoard({ status: "loading" });
-      setAttempt((n) => n + 1);
-    },
-  };
-}
+/** Final prize list — order and ranks match the announced winners sheet. */
+const FINAL_WINNERS: FinalWinner[] = [
+  { rank: 1, name: "Nikunj Chourasiya", title: "First Winner", prize: "₹11,000" },
+  { rank: 2, name: "Harshal Saraf", title: "Second Winner", prize: "₹6,000" },
+  { rank: 3, name: "Abhishek Sisodiya", title: "Third Winner", prize: "₹2,000" },
+  { rank: 4, name: "Shivee Kourav", title: "Daily Wise Winner", prize: "₹1,000" },
+  { rank: 5, name: "Neeraj Thakur", title: "Daily Wise Winner", prize: "₹1,000" },
+  { rank: 6, name: "Priyanka Nagre", title: "Daily Wise Winner", prize: "₹1,000" },
+  { rank: 7, name: "Mohd Irfan", title: "Daily Wise Winner", prize: "₹1,000" },
+  { rank: 8, name: "Sudhanshu Sharma", title: "Daily Wise Winner", prize: "₹1,000" },
+  { rank: 9, name: "Rachit Sohni", title: "Daily Wise Winner", prize: "₹1,000" },
+  { rank: 10, name: "Harishankar Birla", title: "Daily Wise Winner", prize: "₹1,000" },
+  { rank: 11, name: "Amit Tiwari", title: "Daily Wise Winner", prize: "₹1,000" },
+  { rank: 12, name: "Abhishek Kumar", title: "Daily Wise Winner", prize: "₹1,000" },
+  { rank: 14, name: "Ashu Chaudhary", title: "Consolidated Winner", prize: "₹500" },
+  { rank: 15, name: "Ramit Kumar", title: "Consolidated Winner", prize: "₹500" },
+  { rank: 16, name: "Anshu Dixit", title: "Consolidated Winner", prize: "₹500" },
+  { rank: 17, name: "Pankaj Malik", title: "Consolidated Winner", prize: "₹500" },
+  { rank: 18, name: "Azhar Azhar", title: "Consolidated Winner", prize: "₹500" },
+];
 
 const BURSTS: { key: string; tone: "red" | "gold"; style: CSSProperties }[] = [
   { key: "a", tone: "red", style: { top: 10, left: 46, width: 28, height: 28 } },
@@ -261,47 +45,37 @@ const CONFETTI: { key: string; style: CSSProperties }[] = [
 ];
 
 export function LeaderboardScreen() {
-  const { t, lang } = useI18n();
-  const router = useRouter();
-  const [tab, setTab] = useState<"board" | "winners">("board");
-  const [boardMode, setBoardMode] = useState<"overall" | "day">("overall");
-  const [startedDays, setStartedDays] = useState(() => startedQuizDays());
-  const [selectedDay, setSelectedDay] = useState(() => startedQuizDays().at(-1)?.day ?? 1);
-  const dayFilter = tab === "board" && boardMode === "day" ? selectedDay : null;
-  const { board, loadingMore, retry, loadMore } = useLeaderboard(dayFilter);
-  const daily = useDailyWinners();
+  const { t } = useI18n();
+  const listRef = useRef<HTMLUListElement>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    fetchQuizStatus()
-      .then(({ contest }) => {
-        if (cancelled) return;
-        const days = startedQuizDays(new Date(), contest.playableDay ?? contest.contestDay);
-        setStartedDays(days);
-        setSelectedDay((current) => (days.some((quiz) => quiz.day === current) ? current : (days.at(-1)?.day ?? 1)));
-      })
-      .catch(() => {
-        if (cancelled) return;
-        const days = startedQuizDays();
-        setStartedDays(days);
-      });
-    return () => {
-      cancelled = true;
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    const parent = list?.parentElement;
+    if (!list || !parent) return;
+
+    const fitFullCards = () => {
+      list.style.flex = "1 1 auto";
+      list.style.maxHeight = "none";
+      list.style.height = "auto";
+      const available = list.clientHeight;
+      const first = list.querySelector("li");
+      const cardH = first instanceof HTMLElement ? first.offsetHeight : 86;
+      const slot = cardH + CARD_GAP;
+      const count = Math.max(1, Math.floor((available + CARD_GAP) / slot));
+      const used = count * cardH + (count - 1) * CARD_GAP;
+      list.style.flex = `0 0 ${used}px`;
+      list.style.maxHeight = `${used}px`;
+      list.style.height = `${used}px`;
     };
+
+    fitFullCards();
+    const ro = new ResizeObserver(fitFullCards);
+    ro.observe(parent);
+    return () => ro.disconnect();
   }, []);
 
-  function onListScroll(event: UIEvent<HTMLOListElement>) {
-    const list = event.currentTarget;
-    if (list.scrollHeight - list.scrollTop - list.clientHeight < 240) loadMore();
-  }
-
-  const selectedQuiz = startedDays.find((quiz) => quiz.day === selectedDay) ?? startedDays.at(-1);
-  const till = formatShortDate(indiaToday(), lang);
-  const dayBannerDate = selectedQuiz ? formatShortDate(selectedQuiz.date, lang) : till;
-
   return (
-    <div className="question-in relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-[linear-gradient(to_bottom,#FDF1E3_0%,#FDF4E8_40%,#FCEEDD_72%,#FBE6D0_100%)] text-[#141B36]">
-      {/* Decoration behind the nav */}
+    <div className="question-in relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-[#FDF1E3] text-[#141B36]">
       {BURSTS.map((b) => (
         <FireworkBurst key={b.key} tone={b.tone} style={b.style} />
       ))}
@@ -317,16 +91,12 @@ export function LeaderboardScreen() {
       <HangingDiya className="absolute top-[-16px] right-[8px] h-[56px] w-[26px]" />
       <StringLights className="absolute top-0 left-0 h-[28px] w-full" />
 
-      {/* Nav */}
       <nav className="relative z-10 grid shrink-0 grid-cols-[40px_1fr_40px] items-center px-[12px] pt-[max(clamp(22px,calc(8dvh-32px),42px),calc(env(safe-area-inset-top)+8px))] pb-[8px]">
         <button
           type="button"
           aria-label="Go back"
-          onClick={() => {
-            postToNative({ type: "QUIZ_BACK" });
-            router.back();
-          }}
-          className="flex h-[40px] w-[40px] items-center justify-center rounded-full text-[#1C2447] active:scale-95 active:bg-[#F8DCC0]"
+          onClick={() => postToNative({ type: "QUIZ_CLOSE" })}
+          className="flex h-[38px] w-[38px] items-center justify-center rounded-full bg-gradient-to-b from-[#F9B97F] to-[#F29A58] text-[#1C2447] shadow-[0_4px_12px_rgba(230,120,50,0.30)] active:scale-95"
         >
           <svg viewBox="0 0 24 24" className="h-[22px] w-[22px]" fill="none" aria-hidden="true">
             <path d="M15 5l-7 7 7 7" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
@@ -334,123 +104,58 @@ export function LeaderboardScreen() {
         </button>
         <div className="min-w-0 text-center">
           <h1 className="font-display text-[20px] leading-[24px] font-extrabold tracking-[-0.01em]">{t("title").replace("!", "")}</h1>
-          <p className="mt-[2px] font-display text-[15px] leading-[18px] font-extrabold tracking-[0.01em] text-[#E2551F]">
-            {t("leaderboard")}
-          </p>
         </div>
-        {tab === "board" ? (
-          <a
-            href="#how-ranking-works"
-            aria-label="How ranking works"
-            className="flex h-[40px] w-[40px] items-center justify-center justify-self-end rounded-full text-[#4A4A5A] active:scale-95 active:bg-[#F8DCC0]"
-          >
-            <svg viewBox="0 0 24 24" className="h-[24px] w-[24px]" fill="none" aria-hidden="true">
-              <circle cx="12" cy="12" r="9.2" stroke="currentColor" strokeWidth="1.7" />
-              <path
-                d="M9.6 9.4a2.5 2.5 0 1 1 3.3 2.4c-.6.2-.9.7-.9 1.3v.5"
-                stroke="currentColor"
-                strokeWidth="1.7"
-                strokeLinecap="round"
-              />
-              <circle cx="12" cy="16.6" r="1" fill="currentColor" />
-            </svg>
-          </a>
-        ) : (
-          <span />
-        )}
+        <span />
       </nav>
 
-      <div className="relative z-10 flex min-h-0 flex-1 flex-col px-[14px] pt-[4px] pb-[calc(16px+env(safe-area-inset-bottom))]">
-        <div className="mb-[10px] flex shrink-0 rounded-full bg-white p-[4px] shadow-[0_4px_12px_rgba(170,110,60,0.10)]">
-          <TabButton active={tab === "board"} onClick={() => setTab("board")} icon="trophy">
-            {t("leaderboard")}
-          </TabButton>
-          <TabButton active={tab === "winners"} onClick={() => setTab("winners")} icon="calendar">
-            {t("dailyWinnersTab")}
-          </TabButton>
-        </div>
-
-        {tab === "board" ? (
-          <>
-            <div className="mb-[8px] flex shrink-0 rounded-full bg-[#F4E6D4] p-[3px]">
-              <ModeButton active={boardMode === "overall"} onClick={() => setBoardMode("overall")}>
-                {t("overallTab")}
-              </ModeButton>
-              <ModeButton active={boardMode === "day"} onClick={() => setBoardMode("day")}>
-                {t("dayWiseTab")}
-              </ModeButton>
-            </div>
-            {boardMode === "day" ? (
-              <div className="mb-[8px] flex shrink-0 gap-[6px] overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {startedDays.map((quiz) => (
-                  <button
-                    key={quiz.day}
-                    type="button"
-                    onClick={() => setSelectedDay(quiz.day)}
-                    className={`h-[32px] shrink-0 rounded-full px-[12px] text-[12px] font-bold active:scale-[0.98] ${
-                      selectedDay === quiz.day ? "bg-[#EE6A2A] text-white" : "bg-[#F4E6D4] text-[#6B5344]"
-                    }`}
-                  >
-                    {t("dayLabel", { day: String(quiz.day) })}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-            <p className="mb-[8px] flex shrink-0 items-start gap-[6px] rounded-[12px] bg-[#FFF4E4] px-[10px] py-[8px] text-[11.5px] leading-[15px] font-semibold text-[#8A5A28]">
-              <span className="mt-[1px] flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded-full bg-[#EE7A2C] text-[10px] font-black text-white">
-                i
-              </span>
-              {boardMode === "day"
-                ? t("dayWiseBanner", { day: String(selectedDay), date: dayBannerDate })
-                : t("overallBanner", { date: till })}
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col">
+        <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden px-[14px] pt-[2px]">
+          <div className="shrink-0 px-[8px] pt-[12px] pb-[22px] text-center">
+            <p className="flex items-center justify-center gap-[8px] text-[20px] leading-[24px] font-black text-[#C45A12]">
+              <img src="/quiz/trophy-gold.png" alt="" className="h-[24px] w-[24px] object-contain" />
+              Final Winners
+              <Sparkles />
             </p>
-            <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[18px] border border-[#F2E2CE] bg-white/92 shadow-[0_8px_22px_rgba(170,110,60,0.10)]">
-              <ColumnHeader />
-              {board.status === "loading" ? (
-                <ol aria-busy="true" aria-label="Loading leaderboard" className="min-h-0 flex-1 overflow-hidden">
-                  {Array.from({ length: 7 }, (_, i) => (
-                    <SkeletonRow key={i} />
-                  ))}
-                </ol>
-              ) : board.status === "error" ? (
-                <BoardMessage title={t("loadFailed")} detail={board.message} onRetry={retry} />
-              ) : board.rows.length === 0 ? (
-                <BoardMessage title={t("emptyTitle")} detail={t("emptyDetail")} />
-              ) : (
-                <>
-                  <ol
-                    onScroll={onListScroll}
-                    className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                  >
-                    {board.rows.map((entry) => (
-                      <LeaderboardRow
-                        key={entry.userId}
-                        entry={entry}
-                        isMe={entry.userId === board.me?.userId}
-                        showDaysPlayed={boardMode === "overall"}
-                      />
-                    ))}
-                    {loadingMore && <SkeletonRow />}
-                  </ol>
-                  {board.me && !board.rows.some((r) => r.userId === board.me?.userId) && (
-                    <ul aria-label="Your rank" className="shrink-0 border-t border-[#F2D9BC] shadow-[0_-6px_14px_rgba(170,110,60,0.10)]">
-                      <LeaderboardRow
-                        entry={{ ...board.me, name: t("you") }}
-                        isMe
-                        showDaysPlayed={boardMode === "overall"}
-                      />
-                    </ul>
-                  )}
-                </>
-              )}
-            </section>
-            <HowRankingWorks />
-          </>
-        ) : (
-          <DailyWinnersPanel board={daily.board} onRetry={daily.retry} />
-        )}
+            <p className="mt-[8px] text-[14px] leading-[18px] font-semibold text-[#6B5344]">Prize distribution as announced</p>
+          </div>
+
+          <ul
+            ref={listRef}
+            className="mt-[14px] flex min-h-0 flex-1 snap-y snap-mandatory flex-col gap-[10px] overflow-y-auto overscroll-contain px-px pt-[10px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+            {FINAL_WINNERS.map((winner) => (
+              <FinalWinnerCard key={winner.rank} winner={winner} />
+            ))}
+          </ul>
+        </div>
+        <div className="relative mt-auto w-full shrink-0 bg-[#FDF1E3] pb-[calc(clamp(12px,2.6dvh,26px)+env(safe-area-inset-bottom))]">
+          <WinnersFooter />
+        </div>
       </div>
     </div>
+  );
+}
+
+function FinalWinnerCard({ winner }: { winner: FinalWinner }) {
+  const medal: MedalKind = winner.rank === 1 ? "gold" : winner.rank === 2 ? "silver" : winner.rank === 3 ? "bronze" : "rest";
+  const featured = winner.rank <= 3;
+  return (
+    <li
+      className={`relative flex h-[86px] shrink-0 snap-start list-none items-center gap-[8px] overflow-hidden rounded-[18px] border px-[10px] py-[10px] ${
+        featured
+          ? "border-[#F0D48A] bg-[linear-gradient(180deg,#FFF8DC_0%,#FFF3C8_100%)] shadow-[0_6px_16px_rgba(200,140,40,0.12)]"
+          : "border-[#F0E4D2] bg-white shadow-[0_4px_12px_rgba(175,95,35,0.08)]"
+      }`}
+    >
+      {featured ? <span className="absolute top-[12px] bottom-[12px] left-0 w-[3px] rounded-full bg-[#E8B83A]" /> : null}
+      <PrizeMedal place={String(winner.rank)} medal={medal} size="rank" />
+      <PotatoAvatar />
+      <span className="min-w-0 flex-1 pr-[2px]">
+        <WinnerName name={winner.name} />
+        <span className="mt-[2px] block text-[12px] leading-[15px] text-[#8E8E98]">{winner.title}</span>
+      </span>
+      <WinnerWreath prize={winner.prize} />
+    </li>
   );
 }
 
@@ -495,7 +200,6 @@ const MEDAL_PALETTE = {
 
 type MedalKind = keyof typeof MEDAL_PALETTE;
 
-/** Hanging prize medal: red ribbon + metallic disc with a highlight and inner ring. */
 function PrizeMedal({
   place,
   medal,
@@ -507,7 +211,7 @@ function PrizeMedal({
 }) {
   const p = MEDAL_PALETTE[medal];
   const uid = `${size}-${place.replace("+", "p")}`;
-  const box = size === "prize" ? "h-[42px] w-[35px]" : "h-[32px] w-[27px]";
+  const box = size === "prize" ? "h-[42px] w-[35px]" : "h-[40px] w-[34px]";
   return (
     <svg viewBox="0 0 40 48" className={`${box} shrink-0 drop-shadow-[0_3px_4px_rgba(120,50,10,0.28)]`} aria-hidden="true">
       <defs>
@@ -543,380 +247,48 @@ function PrizeMedal({
   );
 }
 
-function formatShortDate(iso: string, lang: string) {
-  const date = new Date(`${iso}T00:00:00+05:30`);
-  return date.toLocaleDateString(lang === "en" ? "en-IN" : lang, {
-    day: "numeric",
-    month: "short",
-    timeZone: "Asia/Kolkata",
-  });
+function WinnerName({ name }: { name: string }) {
+  const aliasStart = name.indexOf(" (");
+  if (aliasStart > 0) {
+    return (
+      <span className="block text-[14px] leading-[17px] font-extrabold text-[#1C2447]">
+        <span className="block">{name.slice(0, aliasStart)}</span>
+        <span className="block text-[12px] leading-[15px] font-bold">{name.slice(aliasStart + 1)}</span>
+      </span>
+    );
+  }
+  return <span className="block text-[15px] leading-[18px] font-extrabold text-[#1C2447]">{name}</span>;
 }
 
-function TabButton({
-  active,
-  onClick,
-  icon,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: "trophy" | "calendar";
-  children: string;
-}) {
+function WinnerWreath({ prize }: { prize: string }) {
+  const compact = prize.length > 6;
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex h-[40px] flex-1 items-center justify-center gap-[6px] rounded-full text-[13px] font-bold active:scale-[0.99] ${
-        active ? "bg-[#EE6A2A] text-white shadow-[0_4px_10px_rgba(226,80,28,0.28)]" : "bg-transparent text-[#6B5344]"
-      }`}
-    >
-      {icon === "trophy" ? (
-        <svg viewBox="0 0 24 24" className="h-[16px] w-[16px]" fill="none" aria-hidden="true">
-          <path d="M8 5h8v4.2a4 4 0 0 1-8 0Z" stroke="currentColor" strokeWidth="1.8" />
-          <path d="M8 5.5H5.6c0 2.4 1.1 3.7 3 4.1M16 5.5h2.4c0 2.4-1.1 3.7-3 4.1" stroke="currentColor" strokeWidth="1.6" />
-          <path d="M10.2 13.2h3.6L14.2 18H9.8z" fill="currentColor" />
-        </svg>
-      ) : (
-        <svg viewBox="0 0 24 24" className="h-[16px] w-[16px]" fill="none" aria-hidden="true">
-          <rect x="3.5" y="5" width="17" height="15" rx="2.4" stroke="currentColor" strokeWidth="1.8" />
-          <path d="M3.5 9.4h17M8 3.6v3.2M16 3.6v3.2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-        </svg>
-      )}
-      {children}
-    </button>
-  );
-}
-
-function ModeButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex h-[36px] flex-1 items-center justify-center rounded-full text-[13px] font-bold active:scale-[0.99] ${
-        active ? "bg-[#EE6A2A] text-white" : "bg-transparent text-[#6B5344]"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
-function DailyWinnersPanel({ board, onRetry }: { board: DailyBoard; onRetry: () => void }) {
-  const { t, lang } = useI18n();
-  return (
-    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="shrink-0 px-[8px] pt-[2px] pb-[10px] text-center">
-        <p className="flex items-center justify-center gap-[6px] text-[18px] leading-[22px] font-black text-[#C45A12]">
-          <img src="/quiz/trophy-gold.png" alt="" className="h-[22px] w-[22px] object-contain" />
-          {t("dailyWinnersTab")}
-          <Sparkles />
-        </p>
-        <p className="mt-[6px] flex flex-wrap items-center justify-center gap-x-[6px] gap-y-[4px] text-[13px] leading-[17px] font-semibold text-[#6B5344]">
-          <span>{t("dailyWinnersHeadline")}</span>
-          <span className="inline-flex items-center rounded-full bg-[#E31B70] px-[10px] py-[3px] text-[13px] leading-[16px] font-black tracking-[-0.02em] text-white shadow-[0_2px_6px_rgba(200,20,90,0.28)]">
-            ₹1,000
-          </span>
-        </p>
-      </div>
-      {board.status === "loading" ? (
-        <div className="flex min-h-0 flex-1 flex-col gap-[10px] overflow-hidden pb-[72px]">
-          {Array.from({ length: 3 }, (_, i) => (
-            <div key={i} className="h-[84px] animate-pulse rounded-[18px] bg-white/80" />
-          ))}
-        </div>
-      ) : board.status === "error" ? (
-        <BoardMessage title={t("loadFailed")} detail={board.message} onRetry={onRetry} />
-      ) : board.rows.length === 0 ? (
-        <BoardMessage title={t("dailyWinnersEmpty")} detail={t("dailyWinnersEmptyDetail")} />
-      ) : (
-        <ul className="flex min-h-0 flex-1 flex-col gap-[10px] overflow-y-auto pb-[72px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {board.rows.map((row, i) => (
-            <DailyWinnerCard
-              key={`${row.day}-${row.winner?.userId ?? i}`}
-              row={row}
-              lang={lang}
-              featured={row.day === board.rows[0]?.day}
-            />
-          ))}
-        </ul>
-      )}
-      <DailyWinnersFooter />
-    </div>
-  );
-}
-
-function Sparkles() {
-  return (
-    <svg viewBox="0 0 18 16" className="h-[16px] w-[18px]" aria-hidden="true">
-      <path d="M6.2 1.2l.9 2.4 2.4.9-2.4.9-.9 2.4-.9-2.4-2.4-.9 2.4-.9Z" fill="#F0C24A" />
-      <path d="M13.4 6.2l.7 1.7 1.7.6-1.7.6-.7 1.7-.6-1.7-1.7-.6 1.7-.6Z" fill="#E8A83A" />
-    </svg>
-  );
-}
-
-function DailyWinnersFooter() {
-  return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[100px] w-full overflow-hidden">
-      <svg viewBox="0 0 390 132" className="absolute inset-0 h-full w-full" aria-hidden="true" preserveAspectRatio="xMidYMax meet">
-        <defs>
-          <radialGradient id="dw-glow" cx="50%" cy="42%" r="38%">
-            <stop offset="0" stopColor="#FFE9A3" stopOpacity="0.95" />
-            <stop offset="0.45" stopColor="#F7D56A" stopOpacity="0.28" />
-            <stop offset="1" stopColor="#F7D56A" stopOpacity="0" />
-          </radialGradient>
-        </defs>
-        <ellipse cx="195" cy="58" rx="70" ry="48" fill="url(#dw-glow)" />
-        <FireworkSpark cx={52} cy={48} r={22} />
-        <FireworkSpark cx={88} cy={72} r={11} />
-        <FireworkSpark cx={338} cy={46} r={22} />
-        <FireworkSpark cx={302} cy={74} r={11} />
-        <g transform="translate(78 92)">{marigoldRow("left")}</g>
-        <g transform="translate(248 92)">{marigoldRow("right")}</g>
-      </svg>
+    <span className="relative h-[64px] w-[64px] shrink-0">
       <img
-        src="/quiz/diya-copper.png"
+        src="/quiz/winner-wreath.png?v=5"
         alt=""
-        draggable={false}
-        className="absolute bottom-[4px] left-1/2 h-[72px] w-[72px] -translate-x-1/2 object-contain drop-shadow-[0_8px_12px_rgba(160,80,20,0.28)] select-none"
+        width={64}
+        height={64}
+        className="h-[64px] w-[64px] object-contain"
+        aria-hidden="true"
       />
-    </div>
-  );
-}
-
-function FireworkSpark({ cx, cy, r }: { cx: number; cy: number; r: number }) {
-  const rays = 16;
-  return (
-    <g>
-      {Array.from({ length: rays }, (_, i) => {
-        const angle = (i * Math.PI) / (rays / 2);
-        const inner = i % 2 ? r * 0.32 : r * 0.22;
-        const outer = i % 2 ? r * 0.78 : r;
-        return (
-          <line
-            key={i}
-            x1={(cx + Math.cos(angle) * inner).toFixed(2)}
-            y1={(cy + Math.sin(angle) * inner).toFixed(2)}
-            x2={(cx + Math.cos(angle) * outer).toFixed(2)}
-            y2={(cy + Math.sin(angle) * outer).toFixed(2)}
-            stroke={i % 2 ? "#E8C15A" : "#D4A017"}
-            strokeWidth={i % 2 ? 1.1 : 1.4}
-            strokeLinecap="round"
-            opacity="0.9"
-          />
-        );
-      })}
-      <circle cx={cx} cy={cy} r={r * 0.12} fill="#F8E7A0" />
-    </g>
-  );
-}
-
-function marigoldRow(side: "left" | "right") {
-  const dir = side === "left" ? -1 : 1;
-  const flowers = [
-    { x: 18, y: 2, s: 1 },
-    { x: 38, y: 6, s: 0.82 },
-    { x: 54, y: 10, s: 0.62 },
-  ];
-  const dots = [70, 82, 92, 102, 112];
-  return (
-    <>
-      {flowers.map((f) => (
-        <g key={f.x} transform={`translate(${dir * f.x} ${f.y}) scale(${f.s})`}>
-          <Marigold />
-        </g>
-      ))}
-      {dots.map((x, i) => (
-        <circle
-          key={x}
-          cx={dir * x}
-          cy={14 + i * 0.4}
-          r={Math.max(1.1, 3.2 - i * 0.45)}
-          fill="#E2A32A"
-          opacity={0.85 - i * 0.12}
-        />
-      ))}
-    </>
-  );
-}
-
-function Marigold() {
-  return (
-    <g>
-      {Array.from({ length: 10 }, (_, i) => {
-        const a = (i * Math.PI) / 5 - Math.PI / 2;
-        return (
-          <ellipse
-            key={i}
-            cx={(Math.cos(a) * 7).toFixed(2)}
-            cy={(Math.sin(a) * 6.2).toFixed(2)}
-            rx="4.4"
-            ry="2.6"
-            transform={`rotate(${(a * 180) / Math.PI} ${Math.cos(a) * 7} ${Math.sin(a) * 6.2})`}
-            fill={i % 2 ? "#F0B430" : "#E89420"}
-          />
-        );
-      })}
-      <circle r="3.2" fill="#F6D056" />
-      <circle r="1.5" fill="#C86A12" />
-    </g>
-  );
-}
-
-function DailyWinnerCard({ row, lang, featured = false }: { row: DailyRow; lang: string; featured?: boolean }) {
-  const stamp = formatCardDate(row.date, lang);
-  const winner = row.winner;
-  const place = winner ? [winner.district, winner.state].filter(Boolean).join(", ") : "";
-  return (
-    <li
-      className={`relative flex list-none items-center gap-[10px] overflow-visible rounded-[18px] border px-[12px] py-[11px] ${
-        featured
-          ? "border-[#F0D48A] bg-[linear-gradient(180deg,#FFF8DC_0%,#FFF3C8_100%)] shadow-[0_6px_16px_rgba(200,140,40,0.12)]"
-          : "border-[#F0E4D2] bg-white shadow-[0_4px_12px_rgba(175,95,35,0.08)]"
-      }`}
-    >
-      {featured ? <span className="absolute top-[12px] bottom-[12px] left-0 w-[3px] rounded-full bg-[#E8B83A]" /> : null}
-      <WinnerCalendar day={stamp.day} month={stamp.month} />
-      {winner ? (
-        <>
-          <PotatoAvatar seed={winner.userId} />
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-[15px] leading-[18px] font-extrabold text-[#1C2447]">{maskedName(winner)}</span>
-            {place ? <span className="mt-[2px] block truncate text-[12px] leading-[15px] text-[#8E8E98]">{place}</span> : null}
-          </span>
-          <span className="flex shrink-0 flex-col items-end justify-center pr-[2px]">
-            <span className="text-[17px] leading-[18px] font-black tabular-nums text-[#2FAE4E]">{winner.totalPoints}</span>
-            <span className="mt-[1px] text-[9px] leading-[11px] font-bold tracking-[0.06em] text-[#8E8E98] uppercase">pts</span>
-            <span className="mt-[6px] flex items-center gap-[3px] text-[12px] leading-[14px] font-bold tabular-nums text-[#C45A28]">
-              <svg viewBox="0 0 16 16" className="h-[12px] w-[12px]" fill="none" aria-hidden="true">
-                <circle cx="8" cy="8" r="6.2" stroke="currentColor" strokeWidth="1.6" />
-                <path d="M8 4.6V8l2.4 1.6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-              </svg>
-              {durationLabel(winner)}
-            </span>
-          </span>
-          <WinnerWreath />
-        </>
-      ) : (
-        <span className="min-w-0 flex-1 text-[12px] leading-[16px] font-semibold text-[#8E8E98]">—</span>
-      )}
-    </li>
-  );
-}
-
-function WinnerCalendar({ day, month }: { day: string; month: string }) {
-  return (
-    <span className="relative mt-[2px] h-[56px] w-[48px] shrink-0">
-      <span className="absolute inset-x-0 top-[7px] bottom-0 flex flex-col overflow-hidden rounded-[11px] bg-white shadow-[0_3px_8px_rgba(50,30,20,0.16)]">
-        <span className="h-[12px] shrink-0 bg-[#E4453A]" />
-        <span className="flex min-h-0 flex-1 flex-col items-center justify-center pb-[4px]">
-          <span className="text-[17px] leading-[16px] font-black tracking-[-0.04em] text-[#1A1A2E]">{day}</span>
-          <span className="mt-[1px] text-[10px] leading-[10px] font-extrabold text-[#1A1A2E]">{month}</span>
+      <span className="pointer-events-none absolute top-[30%] right-[12px] left-[12px] flex flex-col items-center">
+        <span
+          className={`leading-none font-black tracking-[-0.05em] text-[#6B1E12] ${
+            compact ? "text-[10px]" : "text-[12px]"
+          }`}
+        >
+          {prize}
+        </span>
+        <span className="mt-[4px] text-[9px] leading-none font-extrabold tracking-[0.01em] text-[#8A3A14]">
+          Winner
         </span>
       </span>
-      <CalendarRing className="absolute top-[1px] left-[10px] z-10 h-[14px] w-[9px]" />
-      <CalendarRing className="absolute top-[1px] right-[10px] z-10 h-[14px] w-[9px]" />
     </span>
   );
 }
 
-function CalendarRing({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 9 14" className={className} aria-hidden="true">
-      <ellipse cx="4.5" cy="7.2" rx="2.75" ry="5.1" fill="none" stroke="#9E9EA4" strokeWidth="2.1" />
-      <ellipse cx="4.5" cy="6.8" rx="2.75" ry="5.1" fill="none" stroke="#EDEDEF" strokeWidth="1.35" />
-    </svg>
-  );
-}
-
-function WinnerWreath() {
-  return (
-    <img
-      src="/quiz/winner-wreath.png"
-      alt=""
-      width={70}
-      height={70}
-      className="-my-[6px] h-[70px] w-[70px] shrink-0 object-contain"
-      aria-hidden="true"
-    />
-  );
-}
-
-function formatCardDate(iso: string, lang: string) {
-  const date = new Date(`${iso}T00:00:00+05:30`);
-  const locale = lang === "en" ? "en-IN" : lang;
-  return {
-    day: date.toLocaleDateString(locale, { day: "numeric", timeZone: "Asia/Kolkata" }),
-    month: date.toLocaleDateString(locale, { month: "short", timeZone: "Asia/Kolkata" }).replace(".", ""),
-  };
-}
-
-/* ---------- Table ---------- */
-
-const GRID = "grid grid-cols-[40px_minmax(0,1fr)_54px_46px] items-center";
-
-function ColumnHeader() {
-  const { t } = useI18n();
-  return (
-    <div className={`${GRID} border-b border-[#EFE3D4] bg-[#FFFDFA] px-[10px] py-[10px] text-[11px] font-semibold text-[#9A8E82]`}>
-      <span className="text-center">{t("rank")}</span>
-      <span className="border-l border-[#EFE3D4] pl-[12px]">{t("name")}</span>
-      <span className="border-l border-[#EFE3D4] text-center">{t("time")}</span>
-      <span className="border-l border-[#EFE3D4] text-center">{t("pointsCol")}</span>
-    </div>
-  );
-}
-
-/** "45s", "1m 5s", "2m". An em dash when this player was saved before timing existed. */
-function formatDuration(totalSeconds: number | null | undefined) {
-  if (totalSeconds == null || !Number.isFinite(totalSeconds)) return "—";
-  const seconds = Math.max(0, Math.round(totalSeconds));
-  const minutes = Math.floor(seconds / 60);
-  const rest = seconds % 60;
-  if (minutes === 0) return `${rest}s`;
-  if (rest === 0) return `${minutes}m`;
-  return `${minutes}m ${rest}s`;
-}
-
-function durationLabel(entry: Pick<LeaderboardEntry, "totalDurationSeconds" | "totalDurationText">) {
-  if (entry.totalDurationText) return entry.totalDurationText;
-  return formatDuration(entry.totalDurationSeconds);
-}
-
-const ROW_TINTS: Record<number, string> = {
-  1: "bg-[linear-gradient(to_right,#FFF8E6,#FFFCF4)]",
-  2: "bg-[linear-gradient(to_right,#F5F7FA,#FBFCFD)]",
-  3: "bg-[linear-gradient(to_right,#FFF2E4,#FFFAF4)]",
-};
-
-const RANK_MEDAL_KIND: Record<number, MedalKind> = {
-  1: "gold",
-  2: "silver",
-  3: "bronze",
-};
-
-/** Leaderboards show masked identities: first name plus last-name initial ("Ansh K."). */
-function maskedName(entry: LeaderboardEntry) {
-  const sessionName = String(entry.userId) === getSession().userId ? getSession().userName : "";
-  const full =
-    entry.name?.trim() ||
-    [entry.firstName, entry.lastName].filter(Boolean).join(" ").trim() ||
-    sessionName.trim();
-  const words = full.split(/\s+/).filter(Boolean);
-  if (words.length === 0) return "Potato Player";
-  if (words.length === 1) return words[0];
-  return `${words[0]} ${words[words.length - 1][0].toUpperCase()}.`;
-}
-
-function PotatoAvatar({ seed: _seed }: { seed: number }) {
+function PotatoAvatar() {
   return (
     <span className="flex h-[42px] w-[42px] shrink-0 overflow-hidden rounded-full shadow-[0_2px_6px_rgba(150,85,30,0.24)]">
       <img
@@ -929,123 +301,166 @@ function PotatoAvatar({ seed: _seed }: { seed: number }) {
   );
 }
 
-function LeaderboardRow({
-  entry,
-  isMe = false,
-  showDaysPlayed = true,
-}: {
-  entry: LeaderboardEntry;
-  isMe?: boolean;
-  showDaysPlayed?: boolean;
-}) {
-  const { rank } = entry;
-  const medalKind = RANK_MEDAL_KIND[rank];
-  const name = maskedName(entry);
-  const place = [entry.district, entry.state].filter(Boolean).join(", ");
-  const tint = isMe ? "bg-[linear-gradient(to_right,#FFE9D3,#FFF6EC)]" : (ROW_TINTS[rank] ?? "bg-white");
-  const sub = showDaysPlayed ? `${place ? `${place} · ` : ""}${entry.daysPlayed}/${TOTAL_DAYS} days` : place;
-
+function Sparkles() {
   return (
-    <li className={`${GRID} list-none border-b border-[#F3EADF] px-[10px] py-[10px] last:border-b-0 ${tint}`}>
-      <span className="flex justify-center">
-        {medalKind ? (
-          <PrizeMedal place={String(rank)} medal={medalKind} size="rank" />
-        ) : (
-          <span className="text-[15px] font-bold text-[#6E6E78]">{rank}</span>
-        )}
-      </span>
-
-      <span className="flex min-w-0 items-center gap-[10px] pl-[12px]">
-        <PotatoAvatar seed={entry.userId} />
-        <span className="min-w-0">
-          <span className="flex items-center gap-[6px]">
-            <span className="truncate text-[14px] leading-[17px] font-bold text-[#1C2447]">{name}</span>
-            {isMe && name !== "You" && (
-              <span className="shrink-0 rounded-full bg-[#EE6A2A] px-[6px] py-[1px] text-[9px] leading-[12px] font-bold text-white">
-                You
-              </span>
-            )}
-          </span>
-          {sub ? <span className="block truncate text-[11px] leading-[14px] text-[#8E8E98]">{sub}</span> : null}
-        </span>
-      </span>
-
-      <span className="text-center text-[12px] leading-[14px] font-bold tabular-nums text-[#C45A28]">
-        {durationLabel(entry)}
-      </span>
-      <span className="text-center text-[15px] font-bold text-[#2FAE4E]">{entry.totalPoints}</span>
-    </li>
+    <svg viewBox="0 0 18 16" className="h-[16px] w-[18px]" aria-hidden="true">
+      <path d="M6.2 1.2l.9 2.4 2.4.9-2.4.9-.9 2.4-.9-2.4-2.4-.9 2.4-.9Z" fill="#F0C24A" />
+      <path d="M13.4 6.2l.7 1.7 1.7.6-1.7.6-.7 1.7-.6-1.7-1.7-.6 1.7-.6Z" fill="#E8A83A" />
+    </svg>
   );
 }
 
-function SkeletonRow() {
+const PLAQUE_PATH =
+  "M92 50H140C154 50 156 38 172 38H218C234 38 236 50 250 50H298C310 50 316 54 320 62C323 68 328 70 334 71C344 72 350 80 350 92V132C350 150 340 160 322 160H68C50 160 40 150 40 132V92C40 80 46 72 56 71C62 70 67 68 70 62C74 54 80 50 92 50Z";
+
+function WinnersFooter() {
   return (
-    <li aria-hidden="true" className={`${GRID} list-none border-b border-[#F3EADF] px-[10px] py-[12px]`}>
-      <span className="mx-auto h-[20px] w-[20px] animate-pulse rounded-full bg-[#F3E6D6]" />
-      <span className="flex items-center gap-[10px] pl-[12px]">
-        <span className="h-[42px] w-[42px] shrink-0 animate-pulse rounded-full bg-[#F3E6D6]" />
-        <span className="flex flex-1 flex-col gap-[6px]">
-          <span className="h-[12px] w-[60%] animate-pulse rounded-full bg-[#F3E6D6]" />
-          <span className="h-[9px] w-[40%] animate-pulse rounded-full bg-[#F6EEE4]" />
-        </span>
-      </span>
-      <span className="mx-auto h-[12px] w-[28px] animate-pulse rounded-full bg-[#F6EEE4]" />
-      <span className="mx-auto h-[14px] w-[32px] animate-pulse rounded-full bg-[#F3E6D6]" />
-    </li>
+    <svg viewBox="0 0 390 180" className="block h-auto w-full" role="img" aria-label="Winners Announced! Congratulations to all our Diwali Quiz winners!">
+      <defs>
+        <radialGradient id="wf-plaque" cx="0.5" cy="0.42" r="0.75">
+          <stop offset="0" stopColor="#7C2A3E" />
+          <stop offset="0.55" stopColor="#651D31" />
+          <stop offset="1" stopColor="#4A1323" />
+        </radialGradient>
+        <linearGradient id="wf-gold" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#F9DF9A" />
+          <stop offset="0.45" stopColor="#E2A93B" />
+          <stop offset="1" stopColor="#F3CF7A" />
+        </linearGradient>
+        <radialGradient id="wf-glow" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0" stopColor="#FFE9A8" stopOpacity="0.95" />
+          <stop offset="1" stopColor="#FFE9A8" stopOpacity="0" />
+        </radialGradient>
+        <clipPath id="wf-clip">
+          <path d={PLAQUE_PATH} />
+        </clipPath>
+      </defs>
+
+      <FooterBurst cx={46} cy={36} r={24} colours={["#E8A63A", "#F0C668"]} />
+      <FooterBurst cx={328} cy={26} r={22} colours={["#E2553A", "#F0913C"]} />
+      <FooterBurst cx={358} cy={60} r={12} colours={["#F0913C", "#F0C668"]} />
+
+      {/* soft ground shadow */}
+      <ellipse cx="195" cy="165" rx="165" ry="7" fill="#C98A4A" opacity="0.18" />
+
+      {/* plaque */}
+      <path d={PLAQUE_PATH} fill="url(#wf-plaque)" />
+      <g clipPath="url(#wf-clip)" fill="none" strokeLinejoin="round">
+        <path d={PLAQUE_PATH} stroke="url(#wf-gold)" strokeWidth="6.4" />
+      </g>
+
+      {/* top diya with glow rays */}
+      <circle cx="195" cy="20" r="26" fill="url(#wf-glow)" />
+      {Array.from({ length: 9 }, (_, i) => {
+        const angle = Math.PI + (i * Math.PI) / 8;
+        return (
+          <line
+            key={i}
+            x1={(195 + Math.cos(angle) * 17).toFixed(2)}
+            y1={(22 + Math.sin(angle) * 17).toFixed(2)}
+            x2={(195 + Math.cos(angle) * (i % 2 ? 23 : 27)).toFixed(2)}
+            y2={(22 + Math.sin(angle) * (i % 2 ? 23 : 27)).toFixed(2)}
+            stroke="#F2C766"
+            strokeWidth="1.1"
+            strokeLinecap="round"
+            opacity="0.8"
+          />
+        );
+      })}
+      <image href="/quiz/diya-copper.png" x="170" y="2" width="50" height="56" />
+
+      {/* heading */}
+      <Laurel x={80} y={74} />
+      <Laurel x={310} y={74} flip />
+      <text
+        x="195"
+        y="89"
+        textAnchor="middle"
+        fill="#FFFFFF"
+        fontSize="17"
+        fontWeight="900"
+        fontFamily="var(--font-lato), system-ui, sans-serif"
+      >
+        <tspan fontSize="13">🎉</tspan>
+        <tspan dx="2">Winners Announced!</tspan>
+      </text>
+      <text
+        textAnchor="middle"
+        fill="#FBEBD8"
+        fontSize="13.5"
+        fontWeight="600"
+        fontFamily="var(--font-lato), system-ui, sans-serif"
+      >
+        <tspan x="195" y="111">Congratulations to all our</tspan>
+        <tspan x="195" y="128">Diwali Quiz winners!</tspan>
+      </text>
+
+      {/* divider */}
+      <path d="M140 143H184M206 143H250" stroke="#E9B649" strokeWidth="1" strokeLinecap="round" />
+      <path d="M195 139.5l3.5 3.5-3.5 3.5-3.5-3.5Z" fill="#E9B649" />
+      <circle cx="187.5" cy="143" r="1.2" fill="#E9B649" />
+      <circle cx="202.5" cy="143" r="1.2" fill="#E9B649" />
+
+      {/* diyas */}
+      <ellipse cx="52" cy="168" rx="38" ry="4.5" fill="#B9773A" opacity="0.22" />
+      <circle cx="38" cy="126" r="13" fill="url(#wf-glow)" opacity="0.8" />
+      <circle cx="66" cy="132" r="14" fill="url(#wf-glow)" opacity="0.8" />
+      <image href="/quiz/diya-round.png" x="18" y="120" width="40" height="43" />
+      <image href="/quiz/diya-round.png" x="44" y="124" width="44" height="47" />
+
+      {/* gifts */}
+      <ellipse cx="332" cy="169" rx="40" ry="4.5" fill="#B9773A" opacity="0.22" />
+      <image href="/quiz/prize-gift.png" x="334" y="118" width="34" height="40" />
+      <image href="/quiz/prize-gift.png" x="294" y="114" width="48" height="56" />
+    </svg>
   );
 }
 
-function BoardMessage({ title, detail, onRetry }: { title: string; detail: string; onRetry?: () => void }) {
-  const { t } = useI18n();
+function Laurel({ x, y, flip = false }: { x: number; y: number; flip?: boolean }) {
+  // "(" shaped branch drawn in a 16x40 box; flipped horizontally for the right side.
+  const leaves = Array.from({ length: 6 }, (_, i) => {
+    const angle = ((122 + i * 23) * Math.PI) / 180;
+    const px = 24 + Math.cos(angle) * 20;
+    const py = 20 - Math.sin(angle) * 20;
+    const tangent = 90 - (122 + i * 23);
+    return { px, py, tangent };
+  });
   return (
-    <div role={onRetry ? "alert" : "status"} className="flex min-h-0 flex-1 flex-col items-center justify-center px-[24px] text-center">
-      <img src="/quiz/potato-avatar.png" alt="" draggable={false} className="h-[64px] w-[64px] opacity-90" />
-      <p className="mt-[10px] text-[15px] leading-[19px] font-bold text-[#1C2447]">{title}</p>
-      <p className="mt-[4px] text-[12px] leading-[16px] whitespace-nowrap text-[#8E8E98]">{detail}</p>
-      {onRetry && (
-        <button
-          type="button"
-          onClick={onRetry}
-          className="mt-[12px] rounded-full bg-gradient-to-r from-[#F2742C] to-[#E2461C] px-[18px] py-[7px] text-[13px] font-bold text-white shadow-[0_6px_14px_rgba(226,80,28,0.30)] active:scale-95"
-        >
-          {t("tryAgain")}
-        </button>
-      )}
-    </div>
+    <g transform={flip ? `translate(${x} ${y}) scale(-1 1)` : `translate(${x} ${y})`} fill="#E3B24A">
+      <path d="M13.4 3A20 20 0 0 0 13.4 37" fill="none" stroke="#E3B24A" strokeWidth="1.1" strokeLinecap="round" />
+      {leaves.map(({ px, py, tangent }, i) => (
+        <g key={i} transform={`translate(${px.toFixed(2)} ${py.toFixed(2)}) rotate(${tangent})`}>
+          <ellipse cx="3.6" cy="-2.2" rx="4" ry="1.7" transform="rotate(-32)" />
+          <ellipse cx="3.6" cy="2.2" rx="4" ry="1.7" transform="rotate(32)" />
+        </g>
+      ))}
+    </g>
   );
 }
 
-/* ---------- Footer ---------- */
-
-function HowRankingWorks() {
-  const { t } = useI18n();
-  const rules = [t("rankRule1"), t("rankRule2"), t("rankRule3"), t("rankRule4")];
+function FooterBurst({ cx, cy, r, colours }: { cx: number; cy: number; r: number; colours: [string, string] }) {
   return (
-    <section
-      id="how-ranking-works"
-      className="mt-[14px] shrink-0 scroll-mt-[12px] rounded-[18px] border border-[#F3E2CC] bg-[#FDF6EC] px-[14px] py-[12px]"
-    >
-      <p className="flex items-center gap-[7px] text-[13px] leading-[16px] font-bold text-[#2E2A36]">
-        <span className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full bg-[#EE7A2C] text-[11px] font-black text-white">
-          i
-        </span>
-        {t("howRanking")}
-      </p>
-      <ol className="mt-[9px] flex flex-col gap-[7px]">
-        {rules.map((rule, i) => (
-          <li key={rule} className="flex items-start gap-[8px]">
-            <span className="mt-[1px] flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded-full bg-[#FBE0C8] text-[9.5px] font-black text-[#D9701F]">
-              {i + 1}
-            </span>
-            <span className="text-[11.5px] leading-[15px] text-[#5C5560]">{rule}</span>
-          </li>
-        ))}
-      </ol>
-    </section>
+    <g opacity="0.85">
+      {Array.from({ length: 16 }, (_, i) => {
+        const angle = (i * Math.PI) / 8;
+        const inner = r * (i % 2 ? 0.36 : 0.26);
+        const outer = r * (i % 2 ? 0.72 : 1);
+        return (
+          <line
+            key={i}
+            x1={(cx + Math.cos(angle) * inner).toFixed(2)}
+            y1={(cy + Math.sin(angle) * inner).toFixed(2)}
+            x2={(cx + Math.cos(angle) * outer).toFixed(2)}
+            y2={(cy + Math.sin(angle) * outer).toFixed(2)}
+            stroke={colours[i % 2]}
+            strokeWidth={Math.max(1, r / 16)}
+            strokeLinecap="round"
+          />
+        );
+      })}
+    </g>
   );
 }
-
-/* ---------- Artwork ---------- */
 
 function FireworkBurst({ style, tone }: { style: CSSProperties; tone: "red" | "gold" }) {
   const colours = tone === "red" ? ["#E2553A", "#F0913C"] : ["#F0B64A", "#EBC97C"];
