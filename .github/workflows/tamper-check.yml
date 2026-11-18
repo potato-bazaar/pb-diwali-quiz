@@ -1,0 +1,76 @@
+# Fails any push or PR that carries the hidden-loader malware seen in Oct 2026,
+# and opens a "security" issue so repo watchers are alerted (the pusher may be a stolen account).
+# Reads files with git only: nothing from the repo is installed or executed.
+name: Tamper check
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  schedule:
+    - cron: '17 1 * * *'   # daily, 06:47 IST
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  tamper-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Scan for hidden loaders
+        id: scan
+        shell: bash
+        run: |
+          set -u
+          found=""
+          add() { found+="- $1"$'\n'; echo "::error file=$2::$1"; }
+
+          # 1. Known loader markers (docs and detection scripts that quote them are skipped)
+          while IFS= read -r f; do add "loader marker in \`$f\`" "$f"; done < <(
+            git grep -I -l -E "global\.o *= *'[0-9]+-|global\[['\"](!|_V|r)['\"]\] *=|_\\\$_[0-9a-f]{4} *=|rmcej%otb%|fromCharCode\(127\)" -- \
+              ':!*package-lock.json' ':!*yarn.lock' ':!*pnpm-lock.yaml' ':!.github/workflows/tamper-check.yml' \
+              ':!*.md' ':!scripts/verify-build-integrity.mjs' ':!deploy/verify-*.sh' || true)
+
+          # 2. Code hidden after 100+ spaces
+          while IFS= read -r f; do add "code hidden after a long run of spaces in \`$f\`" "$f"; done < <(
+            git grep -I -l -E ' {100,}[^ ]' -- '*.js' '*.mjs' '*.cjs' '*.ts' '*.tsx' '*.jsx' '*.json' '*.py' \
+              ':!*package-lock.json' ':!*.min.js' ':!dist/*' ':!build/*' ':!public/*' || true)
+
+          # 3. Dropper files used by this campaign
+          while IFS= read -r f; do add "suspicious file \`$f\`" "$f"; done < <(
+            git ls-files | grep -E '(^|/)(temp_[^/]*\.bat|config\.bat|branch_structure\.json)$|^\.vscode/tasks\.json$|public/fonts/fa-[^/]*\.(eot|woff2?)$' || true)
+
+          # 4. package.json scripts that run hidden files
+          if [ -f package.json ] && grep -E '"(dev|build|start|preinstall|install|postinstall|prepare)"\s*:\s*"[^"]*node (api\.js|public/)' package.json >/dev/null; then
+            add "package.json script runs a hidden file" package.json
+          fi
+
+          if [ -n "$found" ]; then
+            { echo 'found<<EOF'; echo "$found"; echo 'EOF'; } >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          echo "No tampering found."
+
+      - name: Open a security issue
+        if: failure() && steps.scan.outputs.found != ''
+        uses: actions/github-script@v7
+        env:
+          FOUND: ${{ steps.scan.outputs.found }}
+        with:
+          script: |
+            const branch = context.payload.pull_request ? context.payload.pull_request.head.ref : context.ref.replace('refs/heads/', '');
+            const title = `Tamper check failed on ${branch}`;
+            const body = [
+              `**Do not run, build or merge this branch.** Pushed by \`${context.actor}\` (commit ${context.sha.slice(0, 7)}).`,
+              '', process.env.FOUND, '',
+              `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              'See the Potato Bazaar malware incident plan for the cleanup steps.'
+            ].join('\n');
+            await github.rest.issues.create({ ...context.repo, title, body, labels: ['security'] });
