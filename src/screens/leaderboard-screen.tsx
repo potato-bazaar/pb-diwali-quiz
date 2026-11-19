@@ -30,8 +30,7 @@ const FINAL_WINNERS: FinalWinner[] = [
   { rank: 14, name: "Ashu Chaudhary", title: "Consolidated Winner", prize: "₹500" },
   { rank: 15, name: "Ramit Kumar", title: "Consolidated Winner", prize: "₹500" },
   { rank: 16, name: "Anshu Dixit", title: "Consolidated Winner", prize: "₹500" },
-  { rank: 17, name: "Pankaj Malik", title: "Consolidated Winner", prize: "₹500" },
-  { rank: 18, name: "Azhar Azhar", title: "Consolidated Winner", prize: "₹500" },
+  
 ];
 
 const BURSTS: { key: string; tone: "red" | "gold"; style: CSSProperties }[] = [
